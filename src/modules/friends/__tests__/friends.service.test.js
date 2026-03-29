@@ -9,6 +9,7 @@ jest.mock('../friends.repository', () => ({
     findByPair: jest.fn(),
     create: jest.fn(),
     acceptById: jest.fn(),
+    removeByPair: jest.fn(),
   },
 }));
 
@@ -135,5 +136,79 @@ describe('friendsService.sendRequest', () => {
   it('devuelve mensaje de éxito al crear la solicitud', async () => {
     const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
+  });
+});
+
+// h3 testss
+describe('friendsService.removeFriend', () => {
+  const ACCEPTED_FRIENDSHIP = {
+    id: friends_ID,
+    requester_id: REQUESTER_ID,
+    addressee_id: ADDRESSEE_ID,
+    status: 'accepted',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    friendsRepository.findByPair.mockResolvedValue(ACCEPTED_FRIENDSHIP);
+    friendsRepository.removeByPair.mockResolvedValue(ACCEPTED_FRIENDSHIP);
+  });
+
+  // Auto-eliminación
+  it('lanza 400 si el usuario intenta eliminarse a sí mismo', async () => {
+    await expect(friendsService.removeFriend(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('lanza AppError al intentar eliminarse a sí mismo', async () => {
+    await expect(friendsService.removeFriend(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  // No son amigos
+  it('lanza 404 si no existe amistad entre los usuarios', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  // Solicitud pendiente (no aceptada)
+  it('lanza 404 si la relación existe pero está pendiente (no son amigos aún)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+    await expect(friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  // CA.3: eliminación simétrica
+  it('llama a removeByPair con los IDs correctos (CA.3)', async () => {
+    await friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.removeByPair).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+  });
+
+  it('también elimina la amistad si B inició la solicitud a A (CA.3 - dirección inversa)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'accepted',
+    });
+    await friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.removeByPair).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+  });
+
+  // Caso exitoso
+  it('devuelve mensaje de éxito al eliminar la amistad', async () => {
+    const result = await friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Amistad eliminada' });
+  });
+
+  it('consulta findByPair antes de eliminar', async () => {
+    await friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.findByPair).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
   });
 });

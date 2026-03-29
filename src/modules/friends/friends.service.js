@@ -43,6 +43,24 @@ const friendsService = {
     await friendsRepository.create(requesterId, addresseeId);
     return { message: 'Solicitud enviada' };
   },
+
+  async removeFriend(requesterId, friendId) {
+    // No auto-eliminación
+    if (requesterId === friendId) {
+      throw new AppError(400, 'No podés eliminarte a vos mismo como amigo');
+    }
+
+    // Verificar que la amistad existe y está aceptada
+    const friendship = await friendsRepository.findByPair(requesterId, friendId);
+    if (!friendship || friendship.status !== 'accepted') {
+      throw new AppError(404, 'No se encontró una amistad con este usuario');
+    }
+
+    // CA.3: eliminar registro (un solo registro cubre ambas direcciones)
+    await friendsRepository.removeByPair(requesterId, friendId);
+
+    return { message: 'Amistad eliminada' };
+  },
 };
 
 module.exports = { friendsService };

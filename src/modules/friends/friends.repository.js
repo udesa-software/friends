@@ -53,6 +53,18 @@ const friendsRepository = {
     );
     return result.rows[0];
   },
+
+  // Elimina la amistad en cualquier dirección (H3 - CA.3)
+  async removeByPair(userAId, userBId) {
+    const result = await query(
+      `DELETE FROM friendss
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)
+       RETURNING *`,
+      [userAId, userBId]
+    );
+    return result.rows[0] ?? null;
+  },
 };
 
 module.exports = { friendsRepository };

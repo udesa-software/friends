@@ -10,6 +10,15 @@ const friendsController = {
       next(err);
     }
   },
+
+  async removeFriend(req, res, next) {
+    try {
+      const result = await friendsService.removeFriend(req.user.sub, req.params.friendId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 module.exports = { friendsController };

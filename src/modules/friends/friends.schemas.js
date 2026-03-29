@@ -8,4 +8,10 @@ const sendRequestSchema = z.object({
     .uuid('El ID del destinatario no es válido'),
 });
 
-module.exports = { sendRequestSchema };
+const removeFriendSchema = z.object({
+  friendId: z
+    .string({ required_error: 'El ID del amigo es obligatorio' })
+    .uuid('El ID del amigo no es válido'),
+});
+
+module.exports = { sendRequestSchema, removeFriendSchema };
