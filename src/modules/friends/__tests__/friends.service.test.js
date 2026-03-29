@@ -9,6 +9,7 @@ jest.mock('../friends.repository', () => ({
     findByPair: jest.fn(),
     create: jest.fn(),
     acceptById: jest.fn(),
+    deleteById: jest.fn(),
   },
 }));
 
@@ -135,5 +136,185 @@ describe('friendsService.sendRequest', () => {
   it('devuelve mensaje de éxito al crear la solicitud', async () => {
     const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
+  });
+});
+
+// ─────────────────────────────────────────────
+// friendsService.acceptRequest
+// ─────────────────────────────────────────────
+describe('friendsService.acceptRequest', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Error: auto-aceptación
+  it('lanza 400 si el usuario intenta aceptar su propia solicitud', async () => {
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('lanza AppError si el usuario intenta aceptar su propia solicitud', async () => {
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  // No existe ninguna relación
+  it('lanza 409 si no existe ninguna solicitud entre los dos usuarios', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  // La solicitud existe en la dirección correcta → éxito
+  it('acepta correctamente cuando ADDRESSEE envió solicitud a REQUESTER y está pendiente', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,  // quien envió
+      addressee_id: REQUESTER_ID,  // quien acepta
+      status: 'pending',
+    });
+    friendsRepository.acceptById.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'accepted',
+    });
+
+    const result = await friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Solicitud aceptada' });
+    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID);
+  });
+
+  // La solicitud está en la dirección incorrecta (REQUESTER intentó enviarla, no puede auto-aceptar)
+  it('lanza 409 si la solicitud pendiente fue enviada por el propio REQUESTER (dirección incorrecta)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,  // REQUESTER la envió, no puede aceptar su propia solicitud
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+
+    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  // Ya son amigos
+  it('lanza 409 si ya son amigos', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'accepted',
+    });
+
+    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  // Llama a acceptById con el id correcto
+  it('llama a acceptById con el ID de la relación', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    });
+    friendsRepository.acceptById.mockResolvedValue({});
+
+    await friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.acceptById).toHaveBeenCalledTimes(1);
+    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID);
+  });
+});
+
+// ─────────────────────────────────────────────
+// friendsService.declineRequest
+// ─────────────────────────────────────────────
+describe('friendsService.declineRequest', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // No existe ninguna relación
+  it('lanza 409 si no existe solicitud entre los usuarios', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('lanza AppError si no existe solicitud entre los usuarios', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  // Solicitud válida → rechazar con éxito
+  it('rechaza correctamente cuando ADDRESSEE envió solicitud a REQUESTER y está pendiente', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,  // quien envió la solicitud
+      addressee_id: REQUESTER_ID,  // quien la rechaza
+      status: 'pending',
+    });
+    friendsRepository.deleteById.mockResolvedValue({ id: friends_ID });
+
+    const result = await friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Solicitud rechazada' });
+    expect(friendsRepository.deleteById).toHaveBeenCalledWith(friends_ID);
+  });
+
+  // Solicitud en dirección incorrecta (REQUESTER la mandó, no puede declinarse a sí mismo)
+  it('lanza 409 si la solicitud fue enviada por REQUESTER (no puede rechazar su propia solicitud enviada)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+
+    await expect(friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  // Ya son amigos → no se puede rechazar
+  it('lanza 409 si ya son amigos', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'accepted',
+    });
+
+    await expect(friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  // Llama a deleteById con el id correcto
+  it('llama a deleteById con el ID de la relación al rechazar', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    });
+    friendsRepository.deleteById.mockResolvedValue({ id: friends_ID });
+
+    await friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.deleteById).toHaveBeenCalledTimes(1);
+    expect(friendsRepository.deleteById).toHaveBeenCalledWith(friends_ID);
+  });
+
+  // No llama a acceptById al rechazar
+  it('no llama a acceptById al rechazar una solicitud', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    });
+    friendsRepository.deleteById.mockResolvedValue({ id: friends_ID });
+
+    await friendsService.declineRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.acceptById).not.toHaveBeenCalled();
   });
 });
