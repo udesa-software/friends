@@ -138,10 +138,7 @@ describe('friendsService.sendRequest', () => {
     expect(result).toEqual({ message: 'Solicitud enviada' });
   });
 });
-
-// ─────────────────────────────────────────────
-// friendsService.acceptRequest
-// ─────────────────────────────────────────────
+// H2 TESTS
 describe('friendsService.acceptRequest', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -227,9 +224,6 @@ describe('friendsService.acceptRequest', () => {
   });
 });
 
-// ─────────────────────────────────────────────
-// friendsService.declineRequest
-// ─────────────────────────────────────────────
 describe('friendsService.declineRequest', () => {
   beforeEach(() => {
     jest.clearAllMocks();
