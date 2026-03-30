@@ -8,4 +8,9 @@ const sendRequestSchema = z.object({
     .uuid('El ID del destinatario no es válido'),
 });
 
-module.exports = { sendRequestSchema };
+// H5: isPrivate define si el modo privado está activo o no
+const setPrivacySchema = z.object({
+  isPrivate: z.boolean({ required_error: 'El campo isPrivate es obligatorio' }),
+});
+
+module.exports = { sendRequestSchema, setPrivacySchema };

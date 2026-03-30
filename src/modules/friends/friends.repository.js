@@ -53,6 +53,40 @@ const friendsRepository = {
     );
     return result.rows[0];
   },
+
+  // Verifica si userAId y userBId tienen amistad aceptada (H5 CA.1)
+  async areFriends(userAId, userBId) {
+    const result = await query(
+      `SELECT id FROM friendss
+       WHERE status = 'accepted'
+         AND ((requester_id = $1 AND addressee_id = $2)
+              OR (requester_id = $2 AND addressee_id = $1))`,
+      [userAId, userBId]
+    );
+    return result.rows.length > 0;
+  },
+
+  // Obtiene la configuración de privacidad de un usuario (H5)
+  async getPrivacy(userId) {
+    const result = await query(
+      `SELECT is_private FROM user_privacy WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] ?? { is_private: false };
+  },
+
+  // Persiste el estado de privacidad (upsert) (H5 CA.2, CA.3)
+  async setPrivacy(userId, isPrivate) {
+    const result = await query(
+      `INSERT INTO user_privacy (user_id, is_private, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (user_id) DO UPDATE
+         SET is_private = $2, updated_at = NOW()
+       RETURNING *`,
+      [userId, isPrivate]
+    );
+    return result.rows[0];
+  },
 };
 
 module.exports = { friendsRepository };

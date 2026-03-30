@@ -43,6 +43,37 @@ const friendsService = {
     await friendsRepository.create(requesterId, addresseeId);
     return { message: 'Solicitud enviada' };
   },
+
+  // H5 CA.2 + CA.3: activar o desactivar el modo privado con efecto inmediato
+  async setPrivacy(userId, isPrivate) {
+    await friendsRepository.setPrivacy(userId, isPrivate);
+    return {
+      isPrivate,
+      message: isPrivate ? 'Modo privado activado' : 'Modo privado desactivado',
+    };
+  },
+
+  // H5: obtener el estado de privacidad propio
+  async getMyPrivacy(userId) {
+    const row = await friendsRepository.getPrivacy(userId);
+    return { isPrivate: row.is_private };
+  },
+
+  // H5 CA.1: verificar si el requester puede ver la ubicación del targetUserId.
+  // Si el target tiene el modo privado activo, solo sus amigos pueden verla.
+  async canSeeLocation(requesterId, targetUserId) {
+    if (requesterId === targetUserId) {
+      return { canSeeLocation: true };
+    }
+
+    const { is_private } = await friendsRepository.getPrivacy(targetUserId);
+    if (!is_private) {
+      return { canSeeLocation: true };
+    }
+
+    const friends = await friendsRepository.areFriends(requesterId, targetUserId);
+    return { canSeeLocation: friends };
+  },
 };
 
 module.exports = { friendsService };
