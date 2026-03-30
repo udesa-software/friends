@@ -8,4 +8,16 @@ const sendRequestSchema = z.object({
     .uuid('El ID del destinatario no es válido'),
 });
 
-module.exports = { sendRequestSchema };
+const acceptRequestSchema = z.object({
+  requesterId: z
+    .string({ required_error: 'El ID del solicitante es obligatorio' })
+    .uuid('El ID del solicitante no es válido'),
+});
+
+const declineRequestSchema = z.object({
+  requesterId: z
+    .string({ required_error: 'El ID del solicitante es obligatorio' })
+    .uuid('El ID del solicitante no es válido'),
+});
+
+module.exports = { sendRequestSchema, acceptRequestSchema, declineRequestSchema };
