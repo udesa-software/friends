@@ -28,6 +28,16 @@ const friendsController = {
       next(err);
     }
   },
+
+  async getPendingRequests(req, res, next) {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const result = await friendsService.getPendingRequests(req.user.sub, page);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 module.exports = { friendsController };
