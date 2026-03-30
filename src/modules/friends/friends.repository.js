@@ -53,6 +53,43 @@ const friendsRepository = {
     );
     return result.rows[0];
   },
+
+  // H7 CA.1 + CA.2: lista amigos confirmados con paginación y orden.
+  // El ORDER BY se resuelve con un mapa estático para evitar inyección SQL.
+  // sort=alphabetical devuelve el mismo orden que recent: los nombres no están
+  // en este servicio, por lo que el ordenamiento alfabético real es responsabilidad
+  // del cliente tras enriquecer con datos del servicio de usuarios.
+  // Proximidad (CA.1) depende de E.3 Ubicaciones y se implementará en esa épica.
+  async listAccepted(userId, { limit, offset, sort }) {
+    const ORDER_BY_MAP = {
+      recent: 'f.updated_at DESC',
+      alphabetical: 'f.updated_at DESC',
+    };
+    const orderBy = ORDER_BY_MAP[sort] ?? ORDER_BY_MAP.recent;
+
+    const result = await query(
+      `SELECT
+         CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END AS friend_id,
+         f.updated_at
+       FROM friendss f
+       WHERE (f.requester_id = $1 OR f.addressee_id = $1)
+         AND f.status = 'accepted'
+       ORDER BY ${orderBy}
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    return result.rows;
+  },
+
+  async countAccepted(userId) {
+    const result = await query(
+      `SELECT COUNT(*) FROM friendss
+       WHERE (requester_id = $1 OR addressee_id = $1)
+         AND status = 'accepted'`,
+      [userId]
+    );
+    return parseInt(result.rows[0].count, 10);
+  },
 };
 
 module.exports = { friendsRepository };

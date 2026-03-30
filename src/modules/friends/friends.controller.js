@@ -10,6 +10,17 @@ const friendsController = {
       next(err);
     }
   },
+
+  // H7: lista amigos confirmados; query ya validado y tipado por validateQuery(listFriendsSchema)
+  async listFriends(req, res, next) {
+    try {
+      const { page, limit, sort } = req.query;
+      const result = await friendsService.listFriends(req.user.sub, { page, limit, sort });
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 module.exports = { friendsController };

@@ -2,6 +2,7 @@ const { friendsRepository } = require('./friends.repository');
 const { AppError } = require('../../middlewares/errorHandler');
 
 const REQUEST_LIMIT_PER_HOUR = 20;
+const DEFAULT_PAGE_SIZE = 20;
 
 const friendsService = {
   async sendRequest(requesterId, addresseeId) {
@@ -42,6 +43,31 @@ const friendsService = {
     // CA.2: crear solicitud pendiente
     await friendsRepository.create(requesterId, addresseeId);
     return { message: 'Solicitud enviada' };
+  },
+
+  // H7: listado de amigos confirmados con paginación (CA.2) y orden intercambiable (CA.1).
+  // sort=recent  → ORDER BY updated_at DESC (backend).
+  // sort=alphabetical → el backend devuelve en orden recent; el cliente reordena
+  //   alfabéticamente después de enriquecer con nombres del servicio de usuarios.
+  async listFriends(userId, { page = 1, limit = DEFAULT_PAGE_SIZE, sort = 'recent' } = {}) {
+    const offset = (page - 1) * limit;
+
+    const [friends, total] = await Promise.all([
+      friendsRepository.listAccepted(userId, { limit, offset, sort }),
+      friendsRepository.countAccepted(userId),
+    ]);
+
+    // CA.3: isEmpty permite al cliente mostrar diseño amigable con botón de descubrimiento
+    return {
+      friends: friends.map((f) => f.friend_id),
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      isEmpty: total === 0,
+    };
   },
 };
 

@@ -9,6 +9,8 @@ jest.mock('../friends.repository', () => ({
     findByPair: jest.fn(),
     create: jest.fn(),
     acceptById: jest.fn(),
+    listAccepted: jest.fn(),
+    countAccepted: jest.fn(),
   },
 }));
 
@@ -135,5 +137,135 @@ describe('friendsService.sendRequest', () => {
   it('devuelve mensaje de éxito al crear la solicitud', async () => {
     const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
+  });
+});
+
+// ─── H7: friendsService.listFriends ─────────────────────────────────────────
+
+const USER_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+const FRIEND_A  = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+const FRIEND_B  = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+describe('friendsService.listFriends', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // CA.3: lista vacía — isEmpty true
+  it('devuelve isEmpty true cuando el usuario no tiene amigos confirmados', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(0);
+
+    const result = await friendsService.listFriends(USER_ID);
+
+    expect(result.isEmpty).toBe(true);
+    expect(result.friends).toHaveLength(0);
+  });
+
+  // CA.3: lista vacía — paginación coherente con total 0
+  it('devuelve totalPages 0 cuando no hay amigos', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(0);
+
+    const result = await friendsService.listFriends(USER_ID);
+
+    expect(result.pagination.total).toBe(0);
+    expect(result.pagination.totalPages).toBe(0);
+  });
+
+  // CA.2: lista con amigos — isEmpty false
+  it('devuelve isEmpty false cuando hay amigos confirmados', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([
+      { friend_id: FRIEND_A, updated_at: new Date() },
+    ]);
+    friendsRepository.countAccepted.mockResolvedValue(1);
+
+    const result = await friendsService.listFriends(USER_ID);
+
+    expect(result.isEmpty).toBe(false);
+  });
+
+  // CA.2: retorna array de friend_ids
+  it('mapea las filas del repositorio a un array de friend_ids', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([
+      { friend_id: FRIEND_A, updated_at: new Date() },
+      { friend_id: FRIEND_B, updated_at: new Date() },
+    ]);
+    friendsRepository.countAccepted.mockResolvedValue(2);
+
+    const result = await friendsService.listFriends(USER_ID);
+
+    expect(result.friends).toEqual([FRIEND_A, FRIEND_B]);
+  });
+
+  // CA.2: paginación — page y limit por defecto (1 y 20)
+  it('llama al repositorio con offset 0 y limit 20 por defecto', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(0);
+
+    await friendsService.listFriends(USER_ID);
+
+    expect(friendsRepository.listAccepted).toHaveBeenCalledWith(
+      USER_ID,
+      { limit: 20, offset: 0, sort: 'recent' }
+    );
+  });
+
+  // CA.2: paginación — segunda página calcula offset correcto
+  it('calcula el offset correcto para la página 2 con limit 20', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(25);
+
+    await friendsService.listFriends(USER_ID, { page: 2, limit: 20, sort: 'recent' });
+
+    expect(friendsRepository.listAccepted).toHaveBeenCalledWith(
+      USER_ID,
+      { limit: 20, offset: 20, sort: 'recent' }
+    );
+  });
+
+  // CA.2: totalPages se calcula correctamente
+  it('calcula totalPages como ceil(total / limit)', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(25);
+
+    const result = await friendsService.listFriends(USER_ID, { page: 1, limit: 20 });
+
+    expect(result.pagination.totalPages).toBe(2);
+  });
+
+  // CA.2: la metadata de paginación refleja page y limit recibidos
+  it('incluye page y limit correctos en la metadata de paginación', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(10);
+
+    const result = await friendsService.listFriends(USER_ID, { page: 3, limit: 5, sort: 'recent' });
+
+    expect(result.pagination.page).toBe(3);
+    expect(result.pagination.limit).toBe(5);
+  });
+
+  // CA.1: sort=alphabetical se propaga al repositorio (el cliente reordena por nombre)
+  it('propaga sort=alphabetical al repositorio', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(0);
+
+    await friendsService.listFriends(USER_ID, { page: 1, limit: 20, sort: 'alphabetical' });
+
+    expect(friendsRepository.listAccepted).toHaveBeenCalledWith(
+      USER_ID,
+      { limit: 20, offset: 0, sort: 'alphabetical' }
+    );
+  });
+
+  // Ejecución en paralelo de las dos queries (countAccepted + listAccepted)
+  it('ejecuta listAccepted y countAccepted en paralelo', async () => {
+    friendsRepository.listAccepted.mockResolvedValue([]);
+    friendsRepository.countAccepted.mockResolvedValue(0);
+
+    await friendsService.listFriends(USER_ID);
+
+    expect(friendsRepository.listAccepted).toHaveBeenCalledTimes(1);
+    expect(friendsRepository.countAccepted).toHaveBeenCalledTimes(1);
   });
 });
