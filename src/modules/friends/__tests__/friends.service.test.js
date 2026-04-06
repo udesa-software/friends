@@ -12,6 +12,10 @@ jest.mock('../friends.repository', () => ({
     softDeleteById: jest.fn(),
     getPendingRequesterIds: jest.fn(),
     getPendingRequests: jest.fn(),
+    createBlock: jest.fn(),
+    deleteBlock: jest.fn(),
+    getBlockedUserIds: jest.fn(),
+    softDeleteFriendshipByPair: jest.fn(),
   },
 }));
 
@@ -469,5 +473,179 @@ describe('friendsService.getPendingRequests', () => {
     const result = await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
 
     expect(result.pagination.pageSize).toBe(20);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// blockUser — H8
+// ---------------------------------------------------------------------------
+describe('friendsService.blockUser', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    friendsRepository.createBlock.mockResolvedValue({
+      id: friends_ID,
+      blocker_id: REQUESTER_ID,
+      blocked_id: ADDRESSEE_ID,
+      created_at: new Date(),
+    });
+    friendsRepository.softDeleteFriendshipByPair.mockResolvedValue(null);
+  });
+
+  it('lanza 400 si el usuario intenta bloquearse a sí mismo', async () => {
+    await expect(friendsService.blockUser(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('lanza AppError si el usuario intenta bloquearse a sí mismo', async () => {
+    await expect(friendsService.blockUser(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('llama a createBlock con los parámetros correctos', async () => {
+    await friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.createBlock).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.createBlock).toHaveBeenCalledTimes(1);
+  });
+
+  // CA.3: debe romper la amistad existente al bloquear
+  it('CA.3: llama a softDeleteFriendshipByPair para romper la amistad existente', async () => {
+    await friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.softDeleteFriendshipByPair).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.softDeleteFriendshipByPair).toHaveBeenCalledTimes(1);
+  });
+
+  // CA.3: también se ejecuta aunque no hubiera amistad (softDeleteFriendshipByPair devuelve null)
+  it('CA.3: llama a softDeleteFriendshipByPair aunque no existiera amistad previa', async () => {
+    friendsRepository.softDeleteFriendshipByPair.mockResolvedValue(null);
+    await expect(friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID)).resolves.toBeDefined();
+    expect(friendsRepository.softDeleteFriendshipByPair).toHaveBeenCalled();
+  });
+
+  it('devuelve mensaje de éxito al bloquear correctamente', async () => {
+    const result = await friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Usuario bloqueado' });
+  });
+
+  // Idempotencia: bloquear a alguien ya bloqueado no falla (createBlock usa ON CONFLICT DO NOTHING)
+  it('no lanza error si el usuario ya estaba bloqueado (idempotente)', async () => {
+    friendsRepository.createBlock.mockResolvedValue(null); // ON CONFLICT DO NOTHING devuelve null
+    await expect(friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID)).resolves.toEqual({ message: 'Usuario bloqueado' });
+  });
+
+  // CA.1: no se notifica al bloqueado — el servicio no llama a ningún método de notificación
+  it('CA.1: no llama a ningún método de notificación (no hay notify/send en el flujo)', async () => {
+    await friendsService.blockUser(REQUESTER_ID, ADDRESSEE_ID);
+    // Verificamos que solo se llaman los métodos esperados del repositorio
+    expect(friendsRepository.countRequestsInLastHour).not.toHaveBeenCalled();
+    expect(friendsRepository.isBlockedBy).not.toHaveBeenCalled();
+    expect(friendsRepository.findByPair).not.toHaveBeenCalled();
+    expect(friendsRepository.create).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unblockUser — H8 CA.2
+// ---------------------------------------------------------------------------
+describe('friendsService.unblockUser', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    friendsRepository.deleteBlock.mockResolvedValue({
+      id: friends_ID,
+      blocker_id: REQUESTER_ID,
+      blocked_id: ADDRESSEE_ID,
+    });
+  });
+
+  it('lanza 400 si el usuario pasa su propio ID como blockedId', async () => {
+    await expect(friendsService.unblockUser(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('lanza AppError si el usuario pasa su propio ID como blockedId', async () => {
+    await expect(friendsService.unblockUser(REQUESTER_ID, REQUESTER_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('lanza 404 si no existía el bloqueo', async () => {
+    friendsRepository.deleteBlock.mockResolvedValue(null);
+    await expect(friendsService.unblockUser(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('lanza AppError si no existía el bloqueo', async () => {
+    friendsRepository.deleteBlock.mockResolvedValue(null);
+    await expect(friendsService.unblockUser(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('llama a deleteBlock con los parámetros correctos', async () => {
+    await friendsService.unblockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.deleteBlock).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.deleteBlock).toHaveBeenCalledTimes(1);
+  });
+
+  it('devuelve mensaje de éxito al desbloquear correctamente', async () => {
+    const result = await friendsService.unblockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Usuario desbloqueado' });
+  });
+
+  // El desbloqueo no restaura la amistad — es responsabilidad del usuario reenviar solicitud
+  it('no llama a softDeleteFriendshipByPair ni a createBlock al desbloquear', async () => {
+    await friendsService.unblockUser(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.softDeleteFriendshipByPair).not.toHaveBeenCalled();
+    expect(friendsRepository.createBlock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getBlockedUsers — H8 CA.2
+// ---------------------------------------------------------------------------
+describe('friendsService.getBlockedUsers', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('devuelve lista vacía si el usuario no tiene bloqueados', async () => {
+    friendsRepository.getBlockedUserIds.mockResolvedValue([]);
+    const result = await friendsService.getBlockedUsers(REQUESTER_ID);
+    expect(result).toEqual({ data: [] });
+  });
+
+  it('devuelve la lista de bloqueados con sus IDs y fechas', async () => {
+    const blocked = [
+      { blocked_id: ADDRESSEE_ID, created_at: new Date('2024-06-01') },
+    ];
+    friendsRepository.getBlockedUserIds.mockResolvedValue(blocked);
+
+    const result = await friendsService.getBlockedUsers(REQUESTER_ID);
+    expect(result).toEqual({ data: blocked });
+  });
+
+  it('devuelve múltiples bloqueados correctamente', async () => {
+    const THIRD_USER_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+    const blocked = [
+      { blocked_id: ADDRESSEE_ID, created_at: new Date('2024-06-02') },
+      { blocked_id: THIRD_USER_ID, created_at: new Date('2024-06-01') },
+    ];
+    friendsRepository.getBlockedUserIds.mockResolvedValue(blocked);
+
+    const result = await friendsService.getBlockedUsers(REQUESTER_ID);
+    expect(result.data).toHaveLength(2);
+    expect(result.data).toEqual(blocked);
+  });
+
+  it('llama a getBlockedUserIds con el ID del bloqueador correcto', async () => {
+    friendsRepository.getBlockedUserIds.mockResolvedValue([]);
+    await friendsService.getBlockedUsers(REQUESTER_ID);
+    expect(friendsRepository.getBlockedUserIds).toHaveBeenCalledWith(REQUESTER_ID);
+    expect(friendsRepository.getBlockedUserIds).toHaveBeenCalledTimes(1);
+  });
+
+  it('no llama a ningún otro método del repositorio', async () => {
+    friendsRepository.getBlockedUserIds.mockResolvedValue([]);
+    await friendsService.getBlockedUsers(REQUESTER_ID);
+    expect(friendsRepository.findByPair).not.toHaveBeenCalled();
+    expect(friendsRepository.createBlock).not.toHaveBeenCalled();
+    expect(friendsRepository.deleteBlock).not.toHaveBeenCalled();
   });
 });

@@ -99,6 +99,53 @@ const friendsRepository = {
       : 0;
     return { rows: result.rows, total };
   },
+
+  // H8: crea un bloqueo de blockerId hacia blockedId.
+  // ON CONFLICT DO NOTHING hace la operación idempotente: bloquear dos veces no es error.
+  async createBlock(blockerId, blockedId) {
+    const result = await query(
+      `INSERT INTO blocks (blocker_id, blocked_id)
+       VALUES ($1, $2)
+       ON CONFLICT (blocker_id, blocked_id) DO NOTHING
+       RETURNING *`,
+      [blockerId, blockedId]
+    );
+    return result.rows[0] ?? null;
+  },
+
+  // H8: elimina el bloqueo de blockerId hacia blockedId.
+  // Devuelve null si no existía el bloqueo.
+  async deleteBlock(blockerId, blockedId) {
+    const result = await query(
+      `DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2 RETURNING *`,
+      [blockerId, blockedId]
+    );
+    return result.rows[0] ?? null;
+  },
+
+  // H8 CA.2: lista todos los usuarios bloqueados por blockerId, ordenados por fecha descendente.
+  async getBlockedUserIds(blockerId) {
+    const result = await query(
+      `SELECT blocked_id, created_at FROM blocks WHERE blocker_id = $1 ORDER BY created_at DESC`,
+      [blockerId]
+    );
+    return result.rows;
+  },
+
+  // H8 CA.3: soft-delete de la amistad entre userAId y userBId en cualquier dirección.
+  // Se ejecuta al bloquear para romper automáticamente relaciones pendientes o aceptadas.
+  async softDeleteFriendshipByPair(userAId, userBId) {
+    const result = await query(
+      `UPDATE friends
+       SET deleted_at = NOW(), updated_at = NOW()
+       WHERE ((requester_id = $1 AND addressee_id = $2)
+           OR (requester_id = $2 AND addressee_id = $1))
+         AND deleted_at IS NULL
+       RETURNING *`,
+      [userAId, userBId]
+    );
+    return result.rows[0] ?? null;
+  },
 };
 
 module.exports = { friendsRepository };

@@ -95,6 +95,42 @@ const friendsService = {
     throw new AppError(409, 'No existe una solicitud de amistad válida para rechazar');
   },
 
+  // H8 CA.2: bloquea a blockedId. CA.3: rompe la amistad existente si la hay.
+  // CA.1: no se notifica al bloqueado.
+  async blockUser(blockerId, blockedId) {
+    if (blockerId === blockedId) {
+      throw new AppError(400, 'No podés bloquearte a vos mismo');
+    }
+
+    // Crear el bloqueo (ON CONFLICT DO NOTHING: idempotente si ya estaba bloqueado)
+    await friendsRepository.createBlock(blockerId, blockedId);
+
+    // CA.3: si existía una amistad (pendiente o aceptada), eliminarla lógicamente
+    await friendsRepository.softDeleteFriendshipByPair(blockerId, blockedId);
+
+    return { message: 'Usuario bloqueado' };
+  },
+
+  // H8 CA.2: desbloquea a blockedId.
+  async unblockUser(blockerId, blockedId) {
+    if (blockerId === blockedId) {
+      throw new AppError(400, 'Operación inválida');
+    }
+
+    const deleted = await friendsRepository.deleteBlock(blockerId, blockedId);
+    if (!deleted) {
+      throw new AppError(404, 'No tenés bloqueado a este usuario');
+    }
+
+    return { message: 'Usuario desbloqueado' };
+  },
+
+  // H8 CA.2: lista de usuarios bloqueados por el usuario autenticado.
+  async getBlockedUsers(blockerId) {
+    const blocked = await friendsRepository.getBlockedUserIds(blockerId);
+    return { data: blocked };
+  },
+
   // CA.3/CA.5: lista paginada de solicitudes pendientes ordenadas descendente.
   // CA.4 (filtrar emisores con cuenta eliminada/suspendida) no está implementado:
   // requiere un endpoint en el servicio de usuarios que aún no existe.

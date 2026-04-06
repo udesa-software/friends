@@ -20,4 +20,10 @@ const declineRequestSchema = z.object({
     .uuid('El ID del solicitante no es válido'),
 });
 
-module.exports = { sendRequestSchema, acceptRequestSchema, declineRequestSchema };
+const blockUserSchema = z.object({
+  blockedId: z
+    .string({ required_error: 'El ID del usuario a bloquear es obligatorio' })
+    .uuid('El ID del usuario a bloquear no es válido'),
+});
+
+module.exports = { sendRequestSchema, acceptRequestSchema, declineRequestSchema, blockUserSchema };
