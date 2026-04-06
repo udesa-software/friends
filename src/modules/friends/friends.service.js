@@ -5,7 +5,8 @@ const REQUEST_LIMIT_PER_HOUR = 20;
 const PAGE_SIZE = 20;
 
 const friendsService = {
-  async sendRequest(requesterId, addresseeId) {
+  // requesterUsername: username del usuario actual (del JWT), se persiste en la fila.
+  async sendRequest(requesterId, requesterUsername, addresseeId) {
     // CA.1: no auto-solicitud
     if (requesterId === addresseeId) {
       throw new AppError(400, 'No podés enviarte una solicitud a vos mismo');
@@ -26,13 +27,15 @@ const friendsService = {
     // CA.1 + CA.3: verificar si ya existe relación en alguna dirección
     const existing = await friendsRepository.findByPair(requesterId, addresseeId);
     if (existing) {
-      // CA.3: B ya había enviado solicitud a A (pendiente) — aceptar automáticamente
+      // CA.3: B ya había enviado solicitud a A (pendiente) — aceptar automáticamente.
+      // El usuario actual (requesterId) es el addressee de la fila existente,
+      // así que su username va en addressee_username.
       if (
         existing.status === 'pending' &&
         existing.requester_id === addresseeId &&
         existing.addressee_id === requesterId
       ) {
-        await friendsRepository.acceptById(existing.id);
+        await friendsRepository.acceptById(existing.id, requesterUsername);
         return { message: 'Solicitud enviada' };
       }
 
@@ -41,11 +44,12 @@ const friendsService = {
     }
 
     // CA.2: crear solicitud pendiente
-    await friendsRepository.create(requesterId, addresseeId);
+    await friendsRepository.create(requesterId, requesterUsername, addresseeId);
     return { message: 'Solicitud enviada' };
   },
 
-  async acceptRequest(requesterId, addresseeId) {
+  // requesterUsername: username del usuario actual (el aceptante, addressee de la fila).
+  async acceptRequest(requesterId, requesterUsername, addresseeId) {
     // CA.1: no auto-aceptación
     if (requesterId === addresseeId) {
       throw new AppError(400, 'No podés aceptar una solicitud de vos mismo');
@@ -60,7 +64,7 @@ const friendsService = {
       existing.requester_id === addresseeId &&
       existing.addressee_id === requesterId
     ) {
-      await friendsRepository.acceptById(existing.id);
+      await friendsRepository.acceptById(existing.id, requesterUsername);
       return { message: 'Solicitud aceptada' };
     }
 
@@ -93,6 +97,30 @@ const friendsService = {
     }
 
     throw new AppError(409, 'No existe una solicitud de amistad válida para rechazar');
+  },
+
+  // H7 CA.1: lista paginada de amigos confirmados.
+  // sortBy='alphabetical': ordena por username del amigo (A-Z).
+  // sortBy='proximity': devuelve 501 — requiere integración con servicio de ubicaciones (pendiente).
+  async getFriendsList(userId, sortBy = 'alphabetical', page = 1) {
+    if (sortBy === 'proximity') {
+      throw new AppError(501, 'Ordenamiento por cercanía aún no está disponible');
+    }
+
+    const limit = PAGE_SIZE;
+    const offset = (page - 1) * limit;
+
+    const { rows, total } = await friendsRepository.getConfirmedFriends(userId, limit, offset);
+
+    return {
+      data: rows,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   // CA.3/CA.5: lista paginada de solicitudes pendientes ordenadas descendente.
