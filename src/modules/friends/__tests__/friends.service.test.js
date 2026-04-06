@@ -13,12 +13,15 @@ jest.mock('../friends.repository', () => ({
     softDeleteById: jest.fn(),
     getPendingRequesterIds: jest.fn(),
     getPendingRequests: jest.fn(),
+    getConfirmedFriends: jest.fn(),
   },
 }));
 
 const REQUESTER_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const ADDRESSEE_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const friends_ID = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+const REQUESTER_USERNAME = 'requester_user';
+const ADDRESSEE_USERNAME = 'addressee_user';
 
 // ---------------------------------------------------------------------------
 // sendRequest
@@ -32,6 +35,7 @@ describe('friendsService.sendRequest', () => {
     friendsRepository.create.mockResolvedValue({
       id: friends_ID,
       requester_id: REQUESTER_ID,
+      requester_username: REQUESTER_USERNAME,
       addressee_id: ADDRESSEE_ID,
       status: 'pending',
     });
@@ -39,44 +43,44 @@ describe('friendsService.sendRequest', () => {
 
   // CA.1: no auto-solicitud
   it('lanza 400 si el usuario intenta enviarse una solicitud a sí mismo', async () => {
-    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, REQUESTER_ID))
       .rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('lanza AppError al enviarse solicitud a sí mismo', async () => {
-    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, REQUESTER_ID))
       .rejects.toBeInstanceOf(AppError);
   });
 
   // CA.5: rate limit
   it('lanza 429 si el usuario superó el límite de 20 solicitudes por hora', async () => {
     friendsRepository.countRequestsInLastHour.mockResolvedValue(20);
-    await expect(friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 429 });
   });
 
   it('no lanza si el usuario envió exactamente 19 solicitudes (dentro del límite)', async () => {
     friendsRepository.countRequestsInLastHour.mockResolvedValue(19);
-    await expect(friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .resolves.toEqual({ message: 'Solicitud enviada' });
   });
 
   // CA.4: bloqueado — devuelve éxito genérico sin crear registro
   it('devuelve éxito genérico si el destinatario bloqueó al emisor', async () => {
     friendsRepository.isBlockedBy.mockResolvedValue(true);
-    const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    const result = await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
   });
 
   it('no crea registro ni consulta findByPair si el destinatario bloqueó al emisor', async () => {
     friendsRepository.isBlockedBy.mockResolvedValue(true);
-    await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(friendsRepository.create).not.toHaveBeenCalled();
     expect(friendsRepository.findByPair).not.toHaveBeenCalled();
   });
 
   it('verifica el bloqueo en la dirección correcta (destinatario bloqueó al emisor)', async () => {
-    await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(friendsRepository.isBlockedBy).toHaveBeenCalledWith(ADDRESSEE_ID, REQUESTER_ID);
   });
 
@@ -88,7 +92,7 @@ describe('friendsService.sendRequest', () => {
       addressee_id: ADDRESSEE_ID,
       status: 'pending',
     });
-    await expect(friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -100,7 +104,7 @@ describe('friendsService.sendRequest', () => {
       addressee_id: ADDRESSEE_ID,
       status: 'accepted',
     });
-    await expect(friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -115,9 +119,9 @@ describe('friendsService.sendRequest', () => {
     friendsRepository.findByPair.mockResolvedValue(reversePending);
     friendsRepository.acceptById.mockResolvedValue({ ...reversePending, status: 'accepted' });
 
-    const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    const result = await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
-    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID);
+    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID, REQUESTER_USERNAME);
   });
 
   it('no crea nuevo registro al auto-aceptar solicitud inversa (CA.3)', async () => {
@@ -129,18 +133,18 @@ describe('friendsService.sendRequest', () => {
     });
     friendsRepository.acceptById.mockResolvedValue({});
 
-    await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(friendsRepository.create).not.toHaveBeenCalled();
   });
 
   // CA.2: crea solicitud pendiente en el caso exitoso normal
   it('crea la solicitud en estado pendiente cuando todo está en orden', async () => {
-    await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
-    expect(friendsRepository.create).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+    await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
+    expect(friendsRepository.create).toHaveBeenCalledWith(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
   });
 
   it('devuelve mensaje de éxito al crear la solicitud', async () => {
-    const result = await friendsService.sendRequest(REQUESTER_ID, ADDRESSEE_ID);
+    const result = await friendsService.sendRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud enviada' });
   });
 });
@@ -217,19 +221,19 @@ describe('friendsService.acceptRequest', () => {
 
   // Error: auto-aceptación
   it('lanza 400 si el usuario intenta aceptar su propia solicitud', async () => {
-    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_ID))
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, REQUESTER_ID))
       .rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('lanza AppError si el usuario intenta aceptar su propia solicitud', async () => {
-    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_ID))
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, REQUESTER_ID))
       .rejects.toBeInstanceOf(AppError);
   });
 
   // No existe ninguna relación
   it('lanza 409 si no existe ninguna solicitud entre los dos usuarios', async () => {
     friendsRepository.findByPair.mockResolvedValue(null);
-    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -245,12 +249,13 @@ describe('friendsService.acceptRequest', () => {
       id: friends_ID,
       requester_id: ADDRESSEE_ID,
       addressee_id: REQUESTER_ID,
+      addressee_username: REQUESTER_USERNAME,
       status: 'accepted',
     });
 
-    const result = await friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID);
+    const result = await friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(result).toEqual({ message: 'Solicitud aceptada' });
-    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID);
+    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID, REQUESTER_USERNAME);
   });
 
   // La solicitud está en la dirección incorrecta
@@ -262,7 +267,7 @@ describe('friendsService.acceptRequest', () => {
       status: 'pending',
     });
 
-    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -275,12 +280,12 @@ describe('friendsService.acceptRequest', () => {
       status: 'accepted',
     });
 
-    await expect(friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID))
+    await expect(friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID))
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
-  // Llama a acceptById con el id correcto
-  it('llama a acceptById con el ID de la relación', async () => {
+  // Llama a acceptById con el id y username correctos
+  it('llama a acceptById con el ID de la relación y el username del aceptante', async () => {
     friendsRepository.findByPair.mockResolvedValue({
       id: friends_ID,
       requester_id: ADDRESSEE_ID,
@@ -289,9 +294,9 @@ describe('friendsService.acceptRequest', () => {
     });
     friendsRepository.acceptById.mockResolvedValue({});
 
-    await friendsService.acceptRequest(REQUESTER_ID, ADDRESSEE_ID);
+    await friendsService.acceptRequest(REQUESTER_ID, REQUESTER_USERNAME, ADDRESSEE_ID);
     expect(friendsRepository.acceptById).toHaveBeenCalledTimes(1);
-    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID);
+    expect(friendsRepository.acceptById).toHaveBeenCalledWith(friends_ID, REQUESTER_USERNAME);
   });
 });
 
@@ -532,5 +537,125 @@ describe('friendsService.getPendingRequests', () => {
     const result = await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
 
     expect(result.pagination.pageSize).toBe(20);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getFriendsList — H7 CA.1, CA.2
+// ---------------------------------------------------------------------------
+describe('friendsService.getFriendsList', () => {
+  const THIRD_USER_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+
+  const makeFriend = (friendId, friendUsername, totalCount = '1') => ({
+    friend_id: friendId,
+    friend_username: friendUsername,
+    total_count: totalCount,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // CA.2: lista vacía
+  it('CA.2: devuelve lista vacía y paginación cero si no tiene amigos', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 0 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result).toEqual({
+      data: [],
+      pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+    });
+  });
+
+  // CA.1: orden alfabético
+  it('CA.1: llama al repository con los parámetros correctos para orden alfabético (page 1)', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({
+      rows: [makeFriend(ADDRESSEE_ID, 'alice')],
+      total: 1,
+    });
+
+    await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(friendsRepository.getConfirmedFriends).toHaveBeenCalledWith(
+      REQUESTER_ID,
+      20,  // limit = PAGE_SIZE
+      0    // offset = (1 - 1) * 20
+    );
+  });
+
+  it('CA.1: usa sortBy alphabetical por defecto si no se pasa parámetro', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 0 });
+
+    await friendsService.getFriendsList(REQUESTER_ID);
+
+    expect(friendsRepository.getConfirmedFriends).toHaveBeenCalledWith(REQUESTER_ID, 20, 0);
+  });
+
+  // CA.1: proximidad → 501
+  it('CA.1: lanza 501 si sortBy es proximity (servicio de ubicaciones no disponible)', async () => {
+    await expect(friendsService.getFriendsList(REQUESTER_ID, 'proximity', 1))
+      .rejects.toMatchObject({ statusCode: 501 });
+  });
+
+  it('CA.1: lanza AppError al pedir sortBy proximity', async () => {
+    await expect(friendsService.getFriendsList(REQUESTER_ID, 'proximity', 1))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('CA.1: no consulta el repository si sortBy es proximity', async () => {
+    await friendsService.getFriendsList(REQUESTER_ID, 'proximity', 1).catch(() => {});
+    expect(friendsRepository.getConfirmedFriends).not.toHaveBeenCalled();
+  });
+
+  // CA.2: paginación
+  it('CA.2: calcula offset correctamente para páginas mayores a 1', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 25 });
+
+    await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 2);
+
+    expect(friendsRepository.getConfirmedFriends).toHaveBeenCalledWith(
+      REQUESTER_ID,
+      20,  // limit
+      20   // offset = (2 - 1) * 20
+    );
+  });
+
+  it('CA.2: devuelve totalPages correcto cuando hay más de 20 amigos', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 25 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.pagination).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 25,
+      totalPages: 2,
+    });
+  });
+
+  it('CA.2: devuelve totalPages = 1 cuando hay exactamente 20 amigos', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 20 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.pagination.totalPages).toBe(1);
+  });
+
+  it('CA.2: devuelve los datos del amigo tal como los provee el repository', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data).toEqual([friend]);
+  });
+
+  it('CA.2: usa page 1 por defecto si no se pasa parámetro', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 0 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID);
+
+    expect(result.pagination.page).toBe(1);
   });
 });

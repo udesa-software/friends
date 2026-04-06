@@ -21,4 +21,8 @@ router.post('/decline', authenticate, validate(declineRequestSchema), friendsCon
 // CA.3: ordenadas cronológicamente desc | CA.4: filtra usuarios inactivos | CA.5: paginado
 router.get('/pending', authenticate, friendsController.getPendingRequests);
 
+// GET /api/friends?page=1&sortBy=alphabetical|proximity
+// H7 CA.1: lista de amigos confirmados ordenada | CA.2: paginada (20 por página)
+router.get('/', authenticate, friendsController.getFriendsList);
+
 module.exports = router;

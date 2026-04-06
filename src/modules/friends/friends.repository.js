@@ -32,25 +32,27 @@ const friendsRepository = {
     return result.rows.length > 0;
   },
 
-  // Crea solicitud en estado pendiente
-  async create(requesterId, addresseeId) {
+  // Crea solicitud en estado pendiente almacenando el username del emisor (del JWT).
+  // El username del destinatario se guarda al aceptar (ver acceptById).
+  async create(requesterId, requesterUsername, addresseeId) {
     const result = await query(
-      `INSERT INTO friends (requester_id, addressee_id, status)
-       VALUES ($1, $2, 'pending')
+      `INSERT INTO friends (requester_id, requester_username, addressee_id, status)
+       VALUES ($1, $2, $3, 'pending')
        RETURNING *`,
-      [requesterId, addresseeId]
+      [requesterId, requesterUsername, addresseeId]
     );
     return result.rows[0];
   },
 
-  // Acepta la solicitud actualizando el status a 'accepted'
-  async acceptById(friendsId) {
+  // Acepta la solicitud actualizando el status a 'accepted' y guardando el
+  // username del aceptante (addressee de la solicitud original, del JWT).
+  async acceptById(friendsId, addresseeUsername) {
     const result = await query(
       `UPDATE friends
-       SET status = 'accepted', updated_at = NOW()
+       SET status = 'accepted', updated_at = NOW(), addressee_username = $2
        WHERE id = $1
        RETURNING *`,
-      [friendsId]
+      [friendsId, addresseeUsername]
     );
     return result.rows[0];
   },
@@ -90,6 +92,30 @@ const friendsRepository = {
       [addresseeId]
     );
     return result.rows.map((r) => r.requester_id);
+  },
+
+  // H7: devuelve amigos confirmados con su username, ordenados alfabéticamente.
+  // Usa CASE para obtener los datos del amigo (el que NO es userId) en cada fila.
+  // NULLS LAST para tolerar filas antiguas sin username migrado.
+  async getConfirmedFriends(userId, limit, offset) {
+    const result = await query(
+      `SELECT
+         CASE WHEN requester_id = $1 THEN addressee_id    ELSE requester_id    END AS friend_id,
+         CASE WHEN requester_id = $1 THEN addressee_username ELSE requester_username END AS friend_username,
+         COUNT(*) OVER() AS total_count
+       FROM friends
+       WHERE (requester_id = $1 OR addressee_id = $1)
+         AND status = 'accepted'
+         AND deleted_at IS NULL
+       ORDER BY
+         CASE WHEN requester_id = $1 THEN addressee_username ELSE requester_username END ASC NULLS LAST
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    const total = result.rows[0]?.total_count
+      ? parseInt(result.rows[0].total_count, 10)
+      : 0;
+    return { rows: result.rows, total };
   },
 
   // CA.3/CA.5: devuelve solicitudes pendientes paginadas, filtradas por emisores activos.
