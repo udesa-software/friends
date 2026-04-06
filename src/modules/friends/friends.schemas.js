@@ -8,6 +8,12 @@ const sendRequestSchema = z.object({
     .uuid('El ID del destinatario no es válido'),
 });
 
+const removeFriendSchema = z.object({
+  friendId: z
+    .string({ required_error: 'El ID del amigo es obligatorio' })
+    .uuid('El ID del amigo no es válido'),
+});
+
 const acceptRequestSchema = z.object({
   requesterId: z
     .string({ required_error: 'El ID del solicitante es obligatorio' })
@@ -26,4 +32,10 @@ const blockUserSchema = z.object({
     .uuid('El ID del usuario a bloquear no es válido'),
 });
 
-module.exports = { sendRequestSchema, acceptRequestSchema, declineRequestSchema, blockUserSchema };
+module.exports = {
+  sendRequestSchema,
+  removeFriendSchema,
+  acceptRequestSchema,
+  declineRequestSchema,
+  blockUserSchema,
+};
