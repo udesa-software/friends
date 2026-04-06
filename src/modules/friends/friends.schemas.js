@@ -14,4 +14,21 @@ const removeFriendSchema = z.object({
     .uuid('El ID del amigo no es válido'),
 });
 
-module.exports = { sendRequestSchema, removeFriendSchema };
+const acceptRequestSchema = z.object({
+  requesterId: z
+    .string({ required_error: 'El ID del solicitante es obligatorio' })
+    .uuid('El ID del solicitante no es válido'),
+});
+
+const declineRequestSchema = z.object({
+  requesterId: z
+    .string({ required_error: 'El ID del solicitante es obligatorio' })
+    .uuid('El ID del solicitante no es válido'),
+});
+
+module.exports = {
+  sendRequestSchema,
+  removeFriendSchema,
+  acceptRequestSchema,
+  declineRequestSchema,
+};

@@ -10,6 +10,9 @@ const envSchema = z.object({
   DB_PASSWORD: z.string(),
 
   JWT_SECRET: z.string(),
+
+  // URL del servicio de usuarios (CA.4: filtrar solicitudes de usuarios eliminados/suspendidos)
+  USERS_SERVICE_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

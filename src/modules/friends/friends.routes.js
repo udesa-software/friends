@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { friendsController } = require('./friends.controller');
 const { validate, validateParams } = require('../../middlewares/validate');
 const { authenticate } = require('../../middlewares/authenticate');
-const { sendRequestSchema, removeFriendSchema } = require('./friends.schemas');
+const { sendRequestSchema, removeFriendSchema, acceptRequestSchema, declineRequestSchema } = require('./friends.schemas');
 
 const router = Router();
 
@@ -11,5 +11,14 @@ router.post('/request', authenticate, validate(sendRequestSchema), friendsContro
 
 // DELETE /api/friends/:friendId
 router.delete('/:friendId', authenticate, validateParams(removeFriendSchema), friendsController.removeFriend);
+// POST /api/friends/accept
+router.post('/accept', authenticate, validate(acceptRequestSchema), friendsController.acceptRequest);
+
+// POST /api/friends/decline
+router.post('/decline', authenticate, validate(declineRequestSchema), friendsController.declineRequest);
+
+// GET /api/friends/pending?page=1
+// CA.3: ordenadas cronológicamente desc | CA.4: filtra usuarios inactivos | CA.5: paginado
+router.get('/pending', authenticate, friendsController.getPendingRequests);
 
 module.exports = router;
