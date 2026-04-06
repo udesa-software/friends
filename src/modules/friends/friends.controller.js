@@ -11,6 +11,15 @@ const friendsController = {
     }
   },
 
+  async removeFriend(req, res, next) {
+    try {
+      const result = await friendsService.removeFriend(req.user.sub, req.params.friendId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+      
   async acceptRequest(req, res, next) {
     try {
       const result = await friendsService.acceptRequest(req.user.sub, req.body.requesterId);
