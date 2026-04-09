@@ -48,10 +48,6 @@ const friendsService = {
     return { message: 'Solicitud enviada' };
   },
 
-<<<<<<< backend-h7
-  // requesterUsername: username del usuario actual (el aceptante, addressee de la fila).
-  async acceptRequest(requesterId, requesterUsername, addresseeId) {
-=======
   async removeFriend(requesterId, friendId) {
     // No auto-eliminación
     if (requesterId === friendId) {
@@ -69,9 +65,9 @@ const friendsService = {
 
     return { message: 'Amistad eliminada' };
   },
-  
-  async acceptRequest(requesterId, addresseeId) {
->>>>>>> main
+
+  // requesterUsername: username del usuario actual (el aceptante, addressee de la fila).
+  async acceptRequest(requesterId, requesterUsername, addresseeId) {
     // CA.1: no auto-aceptación
     if (requesterId === addresseeId) {
       throw new AppError(400, 'No podés aceptar una solicitud de vos mismo');
