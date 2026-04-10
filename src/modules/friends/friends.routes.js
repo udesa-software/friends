@@ -25,4 +25,8 @@ router.get('/pending', authenticate, friendsController.getPendingRequests);
 // H7 CA.1: lista de amigos confirmados ordenada | CA.2: paginada (20 por página)
 router.get('/', authenticate, friendsController.getFriendsList);
 
+// DELETE /api/friends/user/:userId  — llamado internamente por el microservicio users (H4 CA.2/CA.4)
+// Elimina lógicamente todas las relaciones del usuario (accepted + pending, ambas direcciones)
+router.delete('/user/:userId', friendsController.deleteUserRelationships);
+
 module.exports = router;

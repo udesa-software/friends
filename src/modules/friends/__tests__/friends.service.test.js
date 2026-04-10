@@ -11,6 +11,7 @@ jest.mock('../friends.repository', () => ({
     acceptById: jest.fn(),
     removeByPair: jest.fn(),
     softDeleteById: jest.fn(),
+    softDeleteAllByUserId: jest.fn(),
     getPendingRequesterIds: jest.fn(),
     getPendingRequests: jest.fn(),
     getConfirmedFriends: jest.fn(),
@@ -658,5 +659,51 @@ describe('friendsService.getFriendsList', () => {
     const result = await friendsService.getFriendsList(REQUESTER_ID);
 
     expect(result.pagination.page).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteUserRelationships — H4 CA.2/CA.4
+// ---------------------------------------------------------------------------
+describe('friendsService.deleteUserRelationships', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Caso principal: el usuario tiene relaciones activas
+  it('H4 CA.2/CA.4: llama a softDeleteAllByUserId con el userId correcto', async () => {
+    friendsRepository.softDeleteAllByUserId.mockResolvedValue(3);
+
+    await friendsService.deleteUserRelationships(REQUESTER_ID);
+
+    expect(friendsRepository.softDeleteAllByUserId).toHaveBeenCalledWith(REQUESTER_ID);
+  });
+
+  it('H4 CA.2/CA.4: devuelve el conteo de relaciones eliminadas', async () => {
+    friendsRepository.softDeleteAllByUserId.mockResolvedValue(3);
+
+    const result = await friendsService.deleteUserRelationships(REQUESTER_ID);
+
+    expect(result).toEqual({ deleted: 3 });
+  });
+
+  // Caso sin relaciones previas
+  it('H4: devuelve { deleted: 0 } si el usuario no tenía relaciones activas', async () => {
+    friendsRepository.softDeleteAllByUserId.mockResolvedValue(0);
+
+    const result = await friendsService.deleteUserRelationships(REQUESTER_ID);
+
+    expect(result).toEqual({ deleted: 0 });
+  });
+
+  // No debe llamar a ningún otro método del repositorio
+  it('H4: no consulta ni modifica otras entidades del repositorio', async () => {
+    friendsRepository.softDeleteAllByUserId.mockResolvedValue(0);
+
+    await friendsService.deleteUserRelationships(REQUESTER_ID);
+
+    expect(friendsRepository.findByPair).not.toHaveBeenCalled();
+    expect(friendsRepository.softDeleteById).not.toHaveBeenCalled();
+    expect(friendsRepository.removeByPair).not.toHaveBeenCalled();
   });
 });

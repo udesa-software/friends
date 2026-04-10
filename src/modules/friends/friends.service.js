@@ -175,6 +175,12 @@ const friendsService = {
       },
     };
   },
+  // H4 CA.2/CA.4: elimina lógicamente todas las relaciones de amistad del usuario,
+  // tanto las aceptadas como las solicitudes pendientes (en ambas direcciones).
+  async deleteUserRelationships(userId) {
+    const count = await friendsRepository.softDeleteAllByUserId(userId);
+    return { deleted: count };
+  },
 };
 
 module.exports = { friendsService };

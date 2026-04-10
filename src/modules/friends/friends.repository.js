@@ -118,6 +118,19 @@ const friendsRepository = {
     return { rows: result.rows, total };
   },
 
+  // H4 CA.2/CA.4: soft-delete de todas las relaciones (accepted o pending) de un usuario eliminado.
+  async softDeleteAllByUserId(userId) {
+    const result = await query(
+      `UPDATE friends
+       SET deleted_at = NOW(), updated_at = NOW()
+       WHERE (requester_id = $1 OR addressee_id = $1)
+         AND deleted_at IS NULL
+       RETURNING id`,
+      [userId]
+    );
+    return result.rowCount;
+  },
+
   // CA.3/CA.5: devuelve solicitudes pendientes paginadas, filtradas por emisores activos.
   // Usa COUNT(*) OVER() para obtener el total real con los mismos filtros en una sola query.
   async getPendingRequests(addresseeId, activeRequesterIds, limit, offset) {
