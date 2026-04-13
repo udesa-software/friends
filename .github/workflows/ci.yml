@@ -13,6 +13,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: friends_db
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U admin -d friends_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -28,6 +43,15 @@ jobs:
       - name: Run unit tests
         run: npm run test
 
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5434
+          TEST_DB_NAME: friends_db
+          TEST_DB_USER: admin
+          TEST_DB_PASSWORD: secret
+
       - name: Test summary
         if: always() && !env.ACT
         uses: actions/github-script@v8
@@ -37,6 +61,7 @@ jobs:
               .addHeading('Test Results')
               .addTable([
                 [{data: 'Step', header: true}, {data: 'Status', header: true}],
-                ['Unit tests (npm run test)', '${{ job.status }}']
+                ['Unit tests (npm run test)', '${{ job.status }}'],
+                ['Integration tests (npm run test:integration)', '${{ job.status }}']
               ])
               .write()
