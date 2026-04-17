@@ -26,8 +26,8 @@ const fs       = require('fs');
 const path     = require('path');
 
 // setupFiles ya seteó process.env antes de este require
-const app        = require('../../../app');
-const { pool }   = require('../../../config/database');
+const app        = require('../../src/app');
+const { pool }   = require('../../src/config/database');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -100,7 +100,7 @@ const tokenD = makeToken(USER_D.id, USER_D.username);
 beforeAll(async () => {
   // Ejecuta todas las migraciones SQL en orden numérico.
   // IF NOT EXISTS en cada script garantiza idempotencia.
-  const migrationsDir = path.join(__dirname, '../../../db/migrations');
+  const migrationsDir = path.join(__dirname, '../../src/db/migrations');
   const files = fs.readdirSync(migrationsDir).sort();
   for (const file of files) {
     if (!file.endsWith('.sql')) continue;

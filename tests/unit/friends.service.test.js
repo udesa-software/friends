@@ -1,8 +1,8 @@
-const { friendsService } = require('../friends.service');
-const { friendsRepository } = require('../friends.repository');
-const { AppError } = require('../../../middlewares/errorHandler');
+const { friendsService } = require('../../src/modules/friends/friends.service');
+const { friendsRepository } = require('../../src/modules/friends/friends.repository');
+const { AppError } = require('../../src/middlewares/errorHandler');
 
-jest.mock('../friends.repository', () => ({
+jest.mock('../../src/modules/friends/friends.repository', () => ({
   friendsRepository: {
     countRequestsInLastHour: jest.fn(),
     isBlockedBy: jest.fn(),
@@ -212,7 +212,7 @@ describe('friendsService.removeFriend', () => {
     expect(friendsRepository.findByPair).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
   });
 });
-    
+
 // ---------------------------------------------------------------------------
 // acceptRequest — H2 CA.1
 // ---------------------------------------------------------------------------

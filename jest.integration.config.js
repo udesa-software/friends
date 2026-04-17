@@ -1,7 +1,7 @@
 /** @type {import('jest').Config} */
 module.exports = {
   // Solo corre archivos *.integration.test.js
-  testMatch: ['**/__tests__/*.integration.test.js'],
+  testMatch: ['<rootDir>/tests/integration/*.integration.test.js'],
 
   // Carga las variables de entorno ANTES de que cualquier módulo sea requerido
   setupFiles: ['./src/tests/setupEnv.js'],
@@ -11,6 +11,12 @@ module.exports = {
 
   // Un worker para evitar condiciones de carrera entre tests que comparten la DB
   maxWorkers: 1,
+
+  // Fuerza el cierre del proceso al terminar (pg mantiene handles async abiertos)
+  forceExit: true,
+
+  // Directorio separado para no mezclar con la cobertura de unit tests
+  coverageDirectory: 'coverage-integration',
 
   // Cobertura sobre todas las capas que ejercitan los integration tests
   collectCoverageFrom: [
