@@ -43,6 +43,15 @@ jobs:
       - name: Run unit tests
         run: npm run test:coverage
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: udesa-software/friends
+          files: ./coverage/lcov.info
+          flags: unit
+          fail_ci_if_error: true
+
       - name: Run integration tests
         run: npm run test:integration:coverage
         env:
@@ -51,6 +60,15 @@ jobs:
           TEST_DB_NAME: friends_db
           TEST_DB_USER: admin
           TEST_DB_PASSWORD: secret
+
+      - name: Upload integration coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: udesa-software/friends
+          files: ./coverage-integration/lcov.info
+          flags: integration
+          fail_ci_if_error: true
 
       - name: Test summary
         if: always() && !env.ACT
