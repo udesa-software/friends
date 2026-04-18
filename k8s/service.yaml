@@ -2,19 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: friends
-  namespace: udesamigos
+  namespace: group-3
   labels:
     app: friends
 spec:
-  # ClusterIP: solo accesible DENTRO del cluster.
-  # El tráfico externo llega por el Ingress del api-gateway, no directamente acá.
   type: ClusterIP
   selector:
     app: friends
   ports:
     - name: http
-      # Este nombre ("friends") es lo que CoreDNS registra.
-      # Cualquier pod del namespace puede llamar a http://friends:3000
       port: 3000
       targetPort: 3000
       protocol: TCP

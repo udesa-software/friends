@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: friends
-  namespace: udesamigos
+  namespace: group-3
   labels:
     app: friends
 spec:
@@ -21,14 +21,11 @@ spec:
         - name: friends
           image: <ECR_URI>/udesamigos/friends:latest
           imagePullPolicy: Always
-          # Puerto debe coincidir con PORT del ConfigMap (3000) y con el Service targetPort
           ports:
             - containerPort: 3000
-          # Variables no sensibles desde ConfigMap
           envFrom:
             - configMapRef:
                 name: friends-config
-          # Credenciales desde Secret (inyectadas una por una)
           env:
             - name: DB_HOST
               valueFrom:
@@ -55,8 +52,6 @@ spec:
                 secretKeyRef:
                   name: friends-secret
                   key: JWT_SECRET
-          # livenessProbe: si el pod queda en estado zombie (no responde),
-          # Kubernetes lo reinicia automáticamente
           livenessProbe:
             httpGet:
               path: /health
@@ -64,8 +59,6 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
-          # readinessProbe: mientras la app no responda /health con 200,
-          # el pod no recibe tráfico del Service (útil durante startup con DB)
           readinessProbe:
             httpGet:
               path: /health
