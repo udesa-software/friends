@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: friends
+  namespace: udesamigos
+  labels:
+    app: friends
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: friends
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: friends
+    spec:
+      containers:
+        - name: friends
+          image: <ECR_URI>/udesamigos/friends:latest
+          imagePullPolicy: Always
+          # Puerto debe coincidir con PORT del ConfigMap (3000) y con el Service targetPort
+          ports:
+            - containerPort: 3000
+          # Variables no sensibles desde ConfigMap
+          envFrom:
+            - configMapRef:
+                name: friends-config
+          # Credenciales desde Secret (inyectadas una por una)
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: DB_HOST
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: JWT_SECRET
+          # livenessProbe: si el pod queda en estado zombie (no responde),
+          # Kubernetes lo reinicia automáticamente
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          # readinessProbe: mientras la app no responda /health con 200,
+          # el pod no recibe tráfico del Service (útil durante startup con DB)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: friends-config
+  namespace: udesamigos
+data:
+  # Sobreescribimos el default (3001) para estandarizar todos los microservicios
+  # en el mismo puerto dentro del cluster. El api-gateway lo llama como
+  # http://friends:3000, por lo que MUST coincidir.
+  PORT: "3000"
+  DB_PORT: "5432"
+
+  # URL del servicio de usuarios dentro del cluster (mismo namespace).
+  # Friends lo usa para verificar si un usuario está activo antes de crear relaciones.
+  USERS_SERVICE_URL: "http://users:3000"
