@@ -9,7 +9,7 @@ const pool = new Pool({
   database: env.DB_NAME,
   user: env.DB_USER,
   password: env.DB_PASSWORD,
-  ssl: SSL_CONFIG,
+  ssl: process.env.NODE_ENV === 'production' ? SSL_CONFIG : false,
 });
 
 async function query(text, params) {
