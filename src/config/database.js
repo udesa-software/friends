@@ -1,12 +1,15 @@
 const { Pool } = require('pg');
 const { env } = require('./env');
 
+const SSL_CONFIG = { rejectUnauthorized: false };
+
 const pool = new Pool({
   host: env.DB_HOST,
   port: parseInt(env.DB_PORT, 10),
   database: env.DB_NAME,
   user: env.DB_USER,
   password: env.DB_PASSWORD,
+  ssl: process.env.NODE_ENV === 'production' ? SSL_CONFIG : false,
 });
 
 async function query(text, params) {
