@@ -68,6 +68,16 @@ const friendsController = {
       next(err);
     }
   },
+  // H5-friends: endpoint interno llamado por location service para obtener friend IDs.
+  async getFriendIds(req, res, next) {
+    try {
+      const result = await friendsService.getFriendIds(req.params.userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // H4: llamado por el microservicio users al eliminar una cuenta.
   // Elimina lógicamente todas las relaciones del usuario (accepted + pending, ambas direcciones).
   async deleteUserRelationships(req, res, next) {

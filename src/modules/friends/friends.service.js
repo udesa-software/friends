@@ -175,6 +175,12 @@ const friendsService = {
       },
     };
   },
+  // H5-friends: endpoint interno usado por location para obtener IDs de amigos confirmados.
+  async getFriendIds(userId) {
+    const friendIds = await friendsRepository.getConfirmedFriendIds(userId);
+    return { friendIds };
+  },
+
   // H4 CA.2/CA.4: elimina lógicamente todas las relaciones de amistad del usuario,
   // tanto las aceptadas como las solicitudes pendientes (en ambas direcciones).
   async deleteUserRelationships(userId) {

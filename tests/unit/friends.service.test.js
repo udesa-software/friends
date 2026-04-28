@@ -15,6 +15,7 @@ jest.mock('../../src/modules/friends/friends.repository', () => ({
     getPendingRequesterIds: jest.fn(),
     getPendingRequests: jest.fn(),
     getConfirmedFriends: jest.fn(),
+    getConfirmedFriendIds: jest.fn(),
   },
 }));
 
@@ -705,5 +706,50 @@ describe('friendsService.deleteUserRelationships', () => {
     expect(friendsRepository.findByPair).not.toHaveBeenCalled();
     expect(friendsRepository.softDeleteById).not.toHaveBeenCalled();
     expect(friendsRepository.removeByPair).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H5-friends: getFriendIds — endpoint interno para location service (H2 + H6)
+// ---------------------------------------------------------------------------
+describe('friendsService.getFriendIds', () => {
+  const FRIEND_ID_A = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  const FRIEND_ID_B = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('llama a getConfirmedFriendIds con el userId correcto', async () => {
+    friendsRepository.getConfirmedFriendIds.mockResolvedValue([]);
+
+    await friendsService.getFriendIds(REQUESTER_ID);
+
+    expect(friendsRepository.getConfirmedFriendIds).toHaveBeenCalledWith(REQUESTER_ID);
+  });
+
+  it('devuelve { friendIds: [...] } con el array de IDs de amigos confirmados', async () => {
+    friendsRepository.getConfirmedFriendIds.mockResolvedValue([FRIEND_ID_A, FRIEND_ID_B]);
+
+    const result = await friendsService.getFriendIds(REQUESTER_ID);
+
+    expect(result).toEqual({ friendIds: [FRIEND_ID_A, FRIEND_ID_B] });
+  });
+
+  it('devuelve { friendIds: [] } si el usuario no tiene amigos confirmados', async () => {
+    friendsRepository.getConfirmedFriendIds.mockResolvedValue([]);
+
+    const result = await friendsService.getFriendIds(REQUESTER_ID);
+
+    expect(result).toEqual({ friendIds: [] });
+  });
+
+  it('propaga el array sin modificaciones (no filtra ni reordena)', async () => {
+    const ids = [FRIEND_ID_B, FRIEND_ID_A];
+    friendsRepository.getConfirmedFriendIds.mockResolvedValue(ids);
+
+    const result = await friendsService.getFriendIds(REQUESTER_ID);
+
+    expect(result.friendIds).toEqual(ids);
   });
 });
