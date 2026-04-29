@@ -2,7 +2,14 @@ const { Router } = require('express');
 const { friendsController } = require('./friends.controller');
 const { validate, validateParams } = require('../../middlewares/validate');
 const { authenticate } = require('../../middlewares/authenticate');
-const { sendRequestSchema, removeFriendSchema, acceptRequestSchema, declineRequestSchema } = require('./friends.schemas');
+const {
+  sendRequestSchema,
+  removeFriendSchema,
+  acceptRequestSchema,
+  declineRequestSchema,
+  blockUserSchema,
+  unblockUserSchema,
+} = require('./friends.schemas');
 
 const router = Router();
 
@@ -28,5 +35,14 @@ router.get('/', authenticate, friendsController.getFriendsList);
 // DELETE /api/friends/user/:userId  — llamado internamente por el microservicio users (H4 CA.2/CA.4)
 // Elimina lógicamente todas las relaciones del usuario (accepted + pending, ambas direcciones)
 router.delete('/user/:userId', friendsController.deleteUserRelationships);
+
+// POST /api/friends/block — H8: bloquear usuario (CA.1 sin notificación, CA.3 rompe amistad)
+router.post('/block', authenticate, validate(blockUserSchema), friendsController.blockUser);
+
+// DELETE /api/friends/block/:blockedId — H8 CA.2: desbloquear usuario
+router.delete('/block/:blockedId', authenticate, validateParams(unblockUserSchema), friendsController.unblockUser);
+
+// GET /api/friends/blocked?page=1 — H8 CA.2: lista de usuarios bloqueados con username
+router.get('/blocked', authenticate, friendsController.getBlockedUsers);
 
 module.exports = router;

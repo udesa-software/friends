@@ -78,6 +78,41 @@ const friendsController = {
       next(err);
     }
   },
+
+  // H8: bloquea a un usuario. CA.1: sin notificación al bloqueado.
+  async blockUser(req, res, next) {
+    try {
+      const result = await friendsService.blockUser(
+        req.user.sub,
+        req.body.blockedId,
+        req.body.blockedUsername
+      );
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // H8 CA.2: desbloquea a un usuario.
+  async unblockUser(req, res, next) {
+    try {
+      const result = await friendsService.unblockUser(req.user.sub, req.params.blockedId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // H8 CA.2: lista de usuarios bloqueados.
+  async getBlockedUsers(req, res, next) {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const result = await friendsService.getBlockedUsers(req.user.sub, page);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 module.exports = { friendsController };
