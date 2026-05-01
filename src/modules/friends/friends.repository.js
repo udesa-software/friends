@@ -165,6 +165,44 @@ const friendsRepository = {
       : 0;
     return { rows: result.rows, total };
   },
+
+  // H8: crea un registro de bloqueo almacenando el username del bloqueado.
+  // ON CONFLICT DO NOTHING para tolerar re-bloqueos sin error de DB.
+  async createBlock(blockerId, blockedId, blockedUsername) {
+    const result = await query(
+      `INSERT INTO blocks (blocker_id, blocked_id, blocked_username)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (blocker_id, blocked_id) DO NOTHING
+       RETURNING *`,
+      [blockerId, blockedId, blockedUsername]
+    );
+    return result.rows[0] ?? null;
+  },
+
+  // H8 CA.2: elimina el bloqueo (desbloquear)
+  async removeBlock(blockerId, blockedId) {
+    const result = await query(
+      `DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2 RETURNING *`,
+      [blockerId, blockedId]
+    );
+    return result.rows[0] ?? null;
+  },
+
+  // H8 CA.2: lista paginada de usuarios bloqueados por blockerId, con username incluido.
+  async getBlockedUsers(blockerId, limit, offset) {
+    const result = await query(
+      `SELECT blocked_id, blocked_username, created_at, COUNT(*) OVER() AS total_count
+       FROM blocks
+       WHERE blocker_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [blockerId, limit, offset]
+    );
+    const total = result.rows[0]?.total_count
+      ? parseInt(result.rows[0].total_count, 10)
+      : 0;
+    return { rows: result.rows, total };
+  },
 };
 
 module.exports = { friendsRepository };

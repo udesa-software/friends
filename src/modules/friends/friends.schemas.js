@@ -26,9 +26,28 @@ const declineRequestSchema = z.object({
     .uuid('El ID del solicitante no es válido'),
 });
 
+// H8: blockedId es el UUID del usuario a bloquear; blockedUsername viene del cliente
+// para denormalizarlo en la tabla blocks sin consultar el servicio de usuarios.
+const blockUserSchema = z.object({
+  blockedId: z
+    .string({ required_error: 'El ID del usuario a bloquear es obligatorio' })
+    .uuid('El ID del usuario a bloquear no es válido'),
+  blockedUsername: z
+    .string({ required_error: 'El username del usuario a bloquear es obligatorio' })
+    .min(1, 'El username no puede estar vacío'),
+});
+
+const unblockUserSchema = z.object({
+  blockedId: z
+    .string({ required_error: 'El ID del usuario a desbloquear es obligatorio' })
+    .uuid('El ID del usuario a desbloquear no es válido'),
+});
+
 module.exports = {
   sendRequestSchema,
   removeFriendSchema,
   acceptRequestSchema,
   declineRequestSchema,
+  blockUserSchema,
+  unblockUserSchema,
 };

@@ -187,6 +187,62 @@ const friendsService = {
     const count = await friendsRepository.softDeleteAllByUserId(userId);
     return { deleted: count };
   },
+
+  // H8: bloquea a un usuario.
+  // CA.1: el bloqueado no recibe notificación (no se envía ninguna).
+  // CA.3: si existe amistad o solicitud pendiente, se elimina automáticamente.
+  async blockUser(blockerId, blockedId, blockedUsername) {
+    if (blockerId === blockedId) {
+      throw new AppError(400, 'No podés bloquearte a vos mismo');
+    }
+
+    const alreadyBlocked = await friendsRepository.isBlockedBy(blockerId, blockedId);
+    if (alreadyBlocked) {
+      throw new AppError(409, 'Este usuario ya está bloqueado');
+    }
+
+    // CA.3: romper amistad o solicitud pendiente si existe
+    const friendship = await friendsRepository.findByPair(blockerId, blockedId);
+    if (friendship) {
+      await friendsRepository.removeByPair(blockerId, blockedId);
+    }
+
+    await friendsRepository.createBlock(blockerId, blockedId, blockedUsername);
+
+    return { message: 'Usuario bloqueado', blockedUsername };
+  },
+
+  // H8 CA.2: desbloquea a un usuario.
+  async unblockUser(blockerId, blockedId) {
+    if (blockerId === blockedId) {
+      throw new AppError(400, 'No podés desbloquearte a vos mismo');
+    }
+
+    const removed = await friendsRepository.removeBlock(blockerId, blockedId);
+    if (!removed) {
+      throw new AppError(404, 'No tenés bloqueado a este usuario');
+    }
+
+    return { message: 'Usuario desbloqueado' };
+  },
+
+  // H8 CA.2: lista paginada de usuarios bloqueados.
+  async getBlockedUsers(blockerId, page = 1) {
+    const limit = PAGE_SIZE;
+    const offset = (page - 1) * limit;
+
+    const { rows, total } = await friendsRepository.getBlockedUsers(blockerId, limit, offset);
+
+    return {
+      data: rows,
+      pagination: {
+        page,
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
 };
 
 module.exports = { friendsService };
