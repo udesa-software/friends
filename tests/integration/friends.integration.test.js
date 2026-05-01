@@ -611,7 +611,7 @@ describe('DELETE /api/friends/:friendId', () => {
       .delete(`/api/friends/${USER_B.id}`)
       .set(authHeader(tokenA));
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(410);
   });
 
   it('devuelve 404 si la relación existe pero está pendiente (no son amigos aún)', async () => {
@@ -623,7 +623,7 @@ describe('DELETE /api/friends/:friendId', () => {
       .delete(`/api/friends/${USER_B.id}`)
       .set(authHeader(tokenA));
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(410);
   });
 
   it('devuelve 200 y elimina la fila de la DB — eliminación simétrica', async () => {
