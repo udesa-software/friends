@@ -32,6 +32,10 @@ router.get('/pending', authenticate, friendsController.getPendingRequests);
 // H7 CA.1: lista de amigos confirmados ordenada | CA.2: paginada (20 por página)
 router.get('/', authenticate, friendsController.getFriendsList);
 
+// GET /api/friends/user/:userId/friends  — llamado internamente por location service (H2 + H5-friends)
+// Devuelve los IDs de amigos confirmados sin autenticación (red interna Docker)
+router.get('/user/:userId/friends', friendsController.getFriendIds);
+
 // DELETE /api/friends/user/:userId  — llamado internamente por el microservicio users (H4 CA.2/CA.4)
 // Elimina lógicamente todas las relaciones del usuario (accepted + pending, ambas direcciones)
 router.delete('/user/:userId', friendsController.deleteUserRelationships);

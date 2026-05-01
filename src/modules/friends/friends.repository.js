@@ -118,6 +118,21 @@ const friendsRepository = {
     return { rows: result.rows, total };
   },
 
+  // H5-friends: devuelve todos los IDs de amigos confirmados de un usuario (sin paginar).
+  // Usado por el endpoint interno que llama el servicio de location.
+  async getConfirmedFriendIds(userId) {
+    const result = await query(
+      `SELECT
+         CASE WHEN requester_id = $1 THEN addressee_id ELSE requester_id END AS friend_id
+       FROM friends
+       WHERE (requester_id = $1 OR addressee_id = $1)
+         AND status = 'accepted'
+         AND deleted_at IS NULL`,
+      [userId]
+    );
+    return result.rows.map((r) => r.friend_id);
+  },
+
   // H4 CA.2/CA.4: soft-delete de todas las relaciones (accepted o pending) de un usuario eliminado.
   async softDeleteAllByUserId(userId) {
     const result = await query(
