@@ -181,14 +181,14 @@ describe('friendsService.removeFriend', () => {
   it('lanza 404 si no existe amistad entre los usuarios', async () => {
     friendsRepository.findByPair.mockResolvedValue(null);
     await expect(friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID))
-      .rejects.toMatchObject({ statusCode: 404 });
+      .rejects.toMatchObject({ statusCode: 410 });
   });
 
   // Solicitud pendiente (no aceptada)
   it('lanza 404 si la relación existe pero está pendiente (no son amigos aún)', async () => {
     friendsRepository.findByPair.mockResolvedValue({ ...ACCEPTED_FRIENDSHIP, status: 'pending' });
     await expect(friendsService.removeFriend(REQUESTER_ID, ADDRESSEE_ID))
-      .rejects.toMatchObject({ statusCode: 404 });
+      .rejects.toMatchObject({ statusCode: 410 });
   });
 
   // CA.3: eliminación simétrica

@@ -57,7 +57,7 @@ const friendsService = {
     // Verificar que la amistad existe y está aceptada
     const friendship = await friendsRepository.findByPair(requesterId, friendId);
     if (!friendship || friendship.status !== 'accepted') {
-      throw new AppError(404, 'No se encontró una amistad con este usuario');
+      throw new AppError(410, 'No se encontró una amistad con este usuario');
     }
 
     // CA.3: eliminar registro (un solo registro cubre ambas direcciones)
