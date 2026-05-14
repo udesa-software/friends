@@ -1,5 +1,6 @@
 const { friendsRepository } = require('./friends.repository');
 const { AppError } = require('../../middlewares/errorHandler');
+const { usersClient } = require('../../clients/usersClient');
 
 const REQUEST_LIMIT_PER_HOUR = 20;
 const PAGE_SIZE = 20;
@@ -120,6 +121,7 @@ const friendsService = {
   // H7 CA.1: lista paginada de amigos confirmados.
   // sortBy='alphabetical': ordena por username del amigo (A-Z).
   // sortBy='proximity': devuelve 501 — requiere integración con servicio de ubicaciones (pendiente).
+  // H10 CA.1/CA.2: enriquece cada amigo con is_online (true si estuvo activo en los últimos 5 min).
   async getFriendsList(userId, sortBy = 'alphabetical', page = 1) {
     if (sortBy === 'proximity') {
       throw new AppError(501, 'Ordenamiento por cercanía aún no está disponible');
@@ -130,8 +132,21 @@ const friendsService = {
 
     const { rows, total } = await friendsRepository.getConfirmedFriends(userId, limit, offset);
 
+    // H10 CA.1: consultar online-status para los amigos de esta página.
+    // Si USERS_SERVICE_URL no está configurado (entorno sin inter-servicios), se salta.
+    let onlineSet = new Set();
+    if (process.env.USERS_SERVICE_URL && rows.length > 0) {
+      const friendIds = rows.map((r) => r.friend_id);
+      onlineSet = await usersClient.getOnlineStatus(friendIds);
+    }
+
+    const enrichedRows = rows.map((r) => ({
+      ...r,
+      is_online: onlineSet.has(r.friend_id),
+    }));
+
     return {
-      data: rows,
+      data: enrichedRows,
       pagination: {
         page,
         pageSize: limit,
