@@ -648,13 +648,13 @@ describe('friendsService.getFriendsList', () => {
     expect(result.pagination.totalPages).toBe(1);
   });
 
-  it('CA.2: devuelve los datos del amigo tal como los provee el repository', async () => {
+  it('CA.2: devuelve los datos del amigo y los setea con is_online', async () => {
     const friend = makeFriend(ADDRESSEE_ID, 'alice');
     friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
 
     const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
 
-    expect(result.data).toEqual([friend]);
+    expect(result.data).toEqual([{ ...friend, is_online: false }]);
   });
 
   it('CA.2: usa page 1 por defecto si no se pasa parámetro', async () => {
