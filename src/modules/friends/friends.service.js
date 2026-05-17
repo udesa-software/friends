@@ -1,8 +1,40 @@
 const { friendsRepository } = require('./friends.repository');
 const { AppError } = require('../../middlewares/errorHandler');
+const { env } = require('../../config/env');
+
 
 const REQUEST_LIMIT_PER_HOUR = 20;
 const PAGE_SIZE = 20;
+
+async function notifyFriendRequest(requesterUsername, addresseeId) {
+  if (!env.NOTIFICATIONS_SERVICE_URL) return;
+
+  try {
+    const url = `${env.NOTIFICATIONS_SERVICE_URL}/notify`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': env.INTERNAL_SECRET,
+      },
+      body: JSON.stringify({
+        user_id: addresseeId,
+        title: 'Nueva solicitud de amistad',
+        body: `${requesterUsername} te envió una solicitud de amistad.`,
+        data: {
+          screen: 'PendingRequests', // CA.2: Deep linking hint
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[FriendsService] Failed to send notification: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('[FriendsService] Error calling notifications service:', error.message);
+  }
+}
+
 
 const friendsService = {
   // requesterUsername: username del usuario actual (del JWT), se persiste en la fila.
@@ -45,7 +77,12 @@ const friendsService = {
 
     // CA.2: crear solicitud pendiente
     await friendsRepository.create(requesterId, requesterUsername, addresseeId);
+
+    // Enviar notificación (no bloqueante)
+    notifyFriendRequest(requesterUsername, addresseeId);
+
     return { message: 'Solicitud enviada' };
+
   },
 
   async removeFriend(requesterId, friendId) {
