@@ -1,7 +1,14 @@
 const { friendsService } = require('../../src/modules/friends/friends.service');
 const { friendsRepository } = require('../../src/modules/friends/friends.repository');
 const { AppError } = require('../../src/middlewares/errorHandler');
+const { usersClient } = require('../../src/clients/usersClient');
 
+jest.mock('../../src/clients/usersClient', () => ({
+  usersClient: {
+    getOnlineStatus: jest.fn(),
+    getActiveUserIds: jest.fn(),
+  },
+}));
 jest.mock('../../src/modules/friends/friends.repository', () => ({
   friendsRepository: {
     countRequestsInLastHour: jest.fn(),
