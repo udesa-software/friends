@@ -49,7 +49,7 @@ const friendsService = {
 
     // Enviar notificación push asincrónica (no bloqueante)
     notificationsClient.sendNotification(addresseeId, {
-      title: '¡Nueva solicitud de amistad! 👥',
+      title: '¡Nueva solicitud de amistad!',
       body: `${requesterUsername} te ha enviado una solicitud de amistad.`,
       data: { screen: 'PendingRequests' }
     }).catch(err => console.error('[FriendsService] Notification trigger failed:', err));
