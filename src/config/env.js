@@ -13,6 +13,8 @@ const envSchema = z.object({
 
   // URL del servicio de usuarios (CA.4: filtrar solicitudes de usuarios eliminados/suspendidos)
   USERS_SERVICE_URL: z.string().url().optional(),
+  NOTIFICATIONS_SERVICE_URL: z.string().url().optional(),
+  INTERNAL_SECRET: z.string().default('default'),
 });
 
 const parsed = envSchema.safeParse(process.env);
