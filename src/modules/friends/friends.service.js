@@ -92,6 +92,18 @@ const friendsService = {
       existing.addressee_id === requesterId
     ) {
       await friendsRepository.acceptById(existing.id, requesterUsername);
+
+      // Enviar notificación push asincrónica (no bloqueante) al emisor original (addresseeId)
+      notificationsClient.sendNotification(addresseeId, {
+        title: '¡Solicitud de amistad aceptada!',
+        body: `${requesterUsername} aceptó tu solicitud de amistad.`,
+        data: { 
+          screen: 'MapFocus', 
+          friendId: requesterId,
+          friendUsername: requesterUsername
+        }
+      }).catch(err => console.error('[FriendsService] Accept notification trigger failed:', err));
+
       return { message: 'Solicitud aceptada' };
     }
 
