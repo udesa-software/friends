@@ -34,6 +34,35 @@ const usersClient = {
     const data = await response.json();
     return data.activeUserIds;
   },
+
+  // H10 CA.1: consulta al servicio de usuarios cuáles de los IDs dados
+  // estuvieron activos en los últimos 5 minutos (last_seen_at reciente).
+  // Devuelve un Set de strings para hacer lookup en O(1) al armar la lista.
+  // Si el servicio no está disponible, falla silenciosamente y devuelve Set vacío
+  // para no romper la lista de amigos por un error de presencia.
+  async getOnlineStatus(userIds) {
+    if (!userIds || userIds.length === 0) return new Set();
+
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/online-status`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds }),
+      });
+
+      if (!response.ok) {
+        console.warn(`[usersClient] getOnlineStatus responded ${response.status}`);
+        return new Set();
+      }
+
+      const data = await response.json();
+      return new Set(data.onlineIds || []);
+    } catch (err) {
+      console.warn('[usersClient] getOnlineStatus failed, defaulting to all offline:', err.message);
+      return new Set();
+    }
+  },
 };
 
 module.exports = { usersClient };
