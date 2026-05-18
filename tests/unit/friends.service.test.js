@@ -1,7 +1,14 @@
 const { friendsService } = require('../../src/modules/friends/friends.service');
 const { friendsRepository } = require('../../src/modules/friends/friends.repository');
 const { AppError } = require('../../src/middlewares/errorHandler');
+const { usersClient } = require('../../src/clients/usersClient');
 
+jest.mock('../../src/clients/usersClient', () => ({
+  usersClient: {
+    getOnlineStatus: jest.fn(),
+    getActiveUserIds: jest.fn(),
+  },
+}));
 jest.mock('../../src/modules/friends/friends.repository', () => ({
   friendsRepository: {
     countRequestsInLastHour: jest.fn(),
@@ -648,13 +655,13 @@ describe('friendsService.getFriendsList', () => {
     expect(result.pagination.totalPages).toBe(1);
   });
 
-  it('CA.2: devuelve los datos del amigo tal como los provee el repository', async () => {
+  it('CA.2: devuelve los datos del amigo y los setea con is_online', async () => {
     const friend = makeFriend(ADDRESSEE_ID, 'alice');
     friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
 
     const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
 
-    expect(result.data).toEqual([friend]);
+    expect(result.data).toEqual([{ ...friend, is_online: false }]);
   });
 
   it('CA.2: usa page 1 por defecto si no se pasa parámetro', async () => {
@@ -1040,5 +1047,87 @@ describe('friendsService.getFriendIds', () => {
     const result = await friendsService.getFriendIds(REQUESTER_ID);
 
     expect(result.friendIds).toEqual(ids);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H11 CA.1/CA.2: getFriendsList — enriquecimiento is_online
+// ---------------------------------------------------------------------------
+describe('friendsService.getFriendsList — is_online (H11)', () => {
+  const makeFriend = (friendId, friendUsername) => ({
+    friend_id: friendId,
+    friend_username: friendUsername,
+    total_count: '1',
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.USERS_SERVICE_URL = 'http://users-service';
+    usersClient.getOnlineStatus.mockResolvedValue(new Set());
+  });
+
+  afterEach(() => {
+    delete process.env.USERS_SERVICE_URL;
+  });
+
+  it('CA.1: marca is_online true para el amigo cuyo ID devuelve usersClient', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+    usersClient.getOnlineStatus.mockResolvedValue(new Set([ADDRESSEE_ID]));
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data[0].is_online).toBe(true);
+  });
+
+  it('CA.1: marca is_online false si el amigo no está en el Set', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+    usersClient.getOnlineStatus.mockResolvedValue(new Set());
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data[0].is_online).toBe(false);
+  });
+
+  it('CA.1: diferencia correctamente online/offline en una lista mixta', async () => {
+    const THIRD_ID = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+    const friendA = makeFriend(ADDRESSEE_ID, 'alice');
+    const friendB = makeFriend(THIRD_ID, 'bob');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friendA, friendB], total: 2 });
+    usersClient.getOnlineStatus.mockResolvedValue(new Set([ADDRESSEE_ID]));
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data.find((f) => f.friend_id === ADDRESSEE_ID).is_online).toBe(true);
+    expect(result.data.find((f) => f.friend_id === THIRD_ID).is_online).toBe(false);
+  });
+
+  it('CA.1: llama a usersClient.getOnlineStatus con los IDs de los amigos de la página', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+
+    await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(usersClient.getOnlineStatus).toHaveBeenCalledWith([ADDRESSEE_ID]);
+  });
+
+  it('no llama a usersClient si USERS_SERVICE_URL no está configurado', async () => {
+    delete process.env.USERS_SERVICE_URL;
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(usersClient.getOnlineStatus).not.toHaveBeenCalled();
+    expect(result.data[0].is_online).toBe(false);
+  });
+
+  it('no llama a usersClient si la lista de amigos está vacía', async () => {
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [], total: 0 });
+
+    await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(usersClient.getOnlineStatus).not.toHaveBeenCalled();
   });
 });
