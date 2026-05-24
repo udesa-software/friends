@@ -123,6 +123,16 @@ const friendsController = {
       next(err);
     }
   },
+
+  // Devuelve el estado de la relación entre el usuario autenticado y otro usuario
+  async getRelationshipStatus(req, res, next) {
+    try {
+      const result = await friendsService.getRelationshipStatus(req.user.sub, req.params.userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 module.exports = { friendsController };

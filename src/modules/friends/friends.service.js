@@ -263,6 +263,24 @@ const friendsService = {
   },
 
   // H8 CA.2: lista paginada de usuarios bloqueados.
+  // Devuelve el estado de la relación entre userId y targetId:
+  //   'self'             → mismo usuario
+  //   'friends'          → amistad aceptada
+  //   'pending_sent'     → userId envió solicitud pendiente a targetId
+  //   'pending_received' → targetId envió solicitud pendiente a userId
+  //   'none'             → sin relación
+  async getRelationshipStatus(userId, targetId) {
+    if (userId === targetId) return { status: 'self' };
+    const row = await friendsRepository.findByPair(userId, targetId);
+    if (!row) return { status: 'none' };
+    if (row.status === 'accepted') return { status: 'friends' };
+    if (row.status === 'pending') {
+      if (row.requester_id === userId) return { status: 'pending_sent' };
+      return { status: 'pending_received' };
+    }
+    return { status: 'none' };
+  },
+
   async getBlockedUsers(blockerId, page = 1) {
     const limit = PAGE_SIZE;
     const offset = (page - 1) * limit;

@@ -49,4 +49,7 @@ router.delete('/block/:blockedId', authenticate, validateParams(unblockUserSchem
 // GET /api/friends/blocked?page=1 — H8 CA.2: lista de usuarios bloqueados con username
 router.get('/blocked', authenticate, friendsController.getBlockedUsers);
 
+// GET /api/friends/status/:userId — estado de la relación entre el usuario auth y otro
+router.get('/status/:userId', authenticate, friendsController.getRelationshipStatus);
+
 module.exports = router;
