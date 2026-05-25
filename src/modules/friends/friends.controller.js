@@ -46,6 +46,15 @@ const friendsController = {
     }
   },
 
+  async cancelRequest(req, res, next) {
+    try {
+      const result = await friendsService.cancelRequest(req.user.sub, req.body.addresseeId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getPendingRequests(req, res, next) {
     try {
       const page = parseInt(req.query.page, 10) || 1;
@@ -128,6 +137,16 @@ const friendsController = {
   async getRelationshipStatus(req, res, next) {
     try {
       const result = await friendsService.getRelationshipStatus(req.user.sub, req.params.userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // Devuelve el estado de la relación en lote
+  async getRelationshipStatuses(req, res, next) {
+    try {
+      const result = await friendsService.getRelationshipStatuses(req.user.sub, req.body.userIds);
       res.status(200).json(result);
     } catch (err) {
       next(err);

@@ -139,6 +139,25 @@ const friendsService = {
     throw new AppError(409, 'No existe una solicitud de amistad válida para rechazar');
   },
 
+  async cancelRequest(requesterId, addresseeId) {
+    const existing = await friendsRepository.findByPair(requesterId, addresseeId);
+    if (!existing) {
+      throw new AppError(409, 'No existe una solicitud de amistad');
+    }
+
+    // Verificar que la solicitud fue enviada por el usuario actual
+    if (
+      existing.status === 'pending' &&
+      existing.requester_id === requesterId &&
+      existing.addressee_id === addresseeId
+    ) {
+      await friendsRepository.softDeleteById(existing.id);
+      return { message: 'Solicitud cancelada' };
+    }
+
+    throw new AppError(409, 'No existe una solicitud de amistad válida para cancelar');
+  },
+
   // H7 CA.1: lista paginada de amigos confirmados.
   // sortBy='alphabetical': ordena por username del amigo (A-Z).
   // sortBy='proximity': devuelve 501 — requiere integración con servicio de ubicaciones (pendiente).
@@ -271,6 +290,11 @@ const friendsService = {
   //   'none'             → sin relación
   async getRelationshipStatus(userId, targetId) {
     if (userId === targetId) return { status: 'self' };
+    
+    // Check if I blocked the user
+    const isBlocked = await friendsRepository.isBlockedBy(userId, targetId);
+    if (isBlocked) return { status: 'blocked' };
+
     const row = await friendsRepository.findByPair(userId, targetId);
     if (!row) return { status: 'none' };
     if (row.status === 'accepted') return { status: 'friends' };
@@ -279,6 +303,48 @@ const friendsService = {
       return { status: 'pending_received' };
     }
     return { status: 'none' };
+  },
+
+  async getRelationshipStatuses(userId, targetIds) {
+    if (!targetIds || targetIds.length === 0) return {};
+
+    // 1. Obtener todos los bloqueos (isBlockedBy)
+    const blocks = await friendsRepository.getBlocksByBlocker(userId, targetIds);
+    const blockedSet = new Set(blocks.map(b => b.blocked_id));
+
+    // 2. Obtener todas las relaciones
+    const rows = await friendsRepository.findByPairs(userId, targetIds);
+    const relationMap = {};
+    for (const row of rows) {
+      const otherId = row.requester_id === userId ? row.addressee_id : row.requester_id;
+      relationMap[otherId] = row;
+    }
+
+    const result = {};
+    for (const targetId of targetIds) {
+      if (userId === targetId) {
+        result[targetId] = 'self';
+        continue;
+      }
+      if (blockedSet.has(targetId)) {
+        result[targetId] = 'blocked';
+        continue;
+      }
+      const row = relationMap[targetId];
+      if (!row) {
+        result[targetId] = 'none';
+        continue;
+      }
+      if (row.status === 'accepted') {
+        result[targetId] = 'friends';
+      } else if (row.status === 'pending') {
+        if (row.requester_id === userId) result[targetId] = 'pending_sent';
+        else result[targetId] = 'pending_received';
+      } else {
+        result[targetId] = 'none';
+      }
+    }
+    return result;
   },
 
   async getBlockedUsers(blockerId, page = 1) {

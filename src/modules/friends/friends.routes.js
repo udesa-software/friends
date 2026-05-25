@@ -9,6 +9,7 @@ const {
   declineRequestSchema,
   blockUserSchema,
   unblockUserSchema,
+  getRelationshipStatusesSchema,
 } = require('./friends.schemas');
 
 const router = Router();
@@ -23,6 +24,9 @@ router.post('/accept', authenticate, validate(acceptRequestSchema), friendsContr
 
 // POST /api/friends/decline
 router.post('/decline', authenticate, validate(declineRequestSchema), friendsController.declineRequest);
+
+// POST /api/friends/cancel
+router.post('/cancel', authenticate, validate(sendRequestSchema), friendsController.cancelRequest);
 
 // GET /api/friends/pending?page=1
 // CA.3: ordenadas cronológicamente desc | CA.4: filtra usuarios inactivos | CA.5: paginado
@@ -51,5 +55,8 @@ router.get('/blocked', authenticate, friendsController.getBlockedUsers);
 
 // GET /api/friends/status/:userId — estado de la relación entre el usuario auth y otro
 router.get('/status/:userId', authenticate, friendsController.getRelationshipStatus);
+
+// POST /api/friends/status/batch — estado de la relación en lote
+router.post('/status/batch', authenticate, validate(getRelationshipStatusesSchema), friendsController.getRelationshipStatuses);
 
 module.exports = router;
