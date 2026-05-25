@@ -34,6 +34,20 @@ const usersClient = {
     const data = await response.json();
     return data.activeUserIds;
   },
+
+  // H9 CA.2/CA.4: pone al usuario reportado en estado "En revisión" y revoca sus tokens.
+  // Si el usuario ya está en revisión, el users service responde con 200 sin efecto.
+  async putUserUnderReview(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}/under-review`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Users service error putting user under review: ${response.status}`);
+    }
+  },
 };
 
 module.exports = { usersClient };
