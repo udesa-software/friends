@@ -13,6 +13,17 @@ const friendsRepository = {
     return result.rows[0] ?? null;
   },
 
+  async findByPairs(userId, targetIds) {
+    const result = await query(
+      `SELECT * FROM friends
+       WHERE ((requester_id = $1 AND addressee_id = ANY($2::uuid[]))
+           OR (requester_id = ANY($2::uuid[]) AND addressee_id = $1))
+         AND deleted_at IS NULL`,
+      [userId, targetIds]
+    );
+    return result.rows;
+  },
+
   // Cuenta solicitudes enviadas en la última hora
   async countRequestsInLastHour(requesterId) {
     const result = await query(
@@ -30,6 +41,14 @@ const friendsRepository = {
       [blockerId, blockedId]
     );
     return result.rows.length > 0;
+  },
+
+  async getBlocksByBlocker(blockerId, targetIds) {
+    const result = await query(
+      `SELECT blocked_id FROM blocks WHERE blocker_id = $1 AND blocked_id = ANY($2::uuid[])`,
+      [blockerId, targetIds]
+    );
+    return result.rows;
   },
 
   // Crea solicitud en estado pendiente almacenando el username del emisor (del JWT).

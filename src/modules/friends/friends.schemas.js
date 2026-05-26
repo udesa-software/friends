@@ -43,6 +43,12 @@ const unblockUserSchema = z.object({
     .uuid('El ID del usuario a desbloquear no es válido'),
 });
 
+const getRelationshipStatusesSchema = z.object({
+  userIds: z.array(
+    z.string().uuid('El ID de usuario debe ser un UUID válido')
+  ).min(1, 'La lista de userIds no puede estar vacía')
+});
+
 module.exports = {
   sendRequestSchema,
   removeFriendSchema,
@@ -50,4 +56,5 @@ module.exports = {
   declineRequestSchema,
   blockUserSchema,
   unblockUserSchema,
+  getRelationshipStatusesSchema,
 };

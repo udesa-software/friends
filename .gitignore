@@ -4,3 +4,5 @@ dist/
 coverage/
 coverage-integration/
 k8s/secret.yaml
+
+coverage/
