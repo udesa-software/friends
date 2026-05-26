@@ -14,6 +14,7 @@ jest.mock('../../src/modules/friends/friends.repository', () => ({
     countRequestsInLastHour: jest.fn(),
     isBlockedBy: jest.fn(),
     findByPair: jest.fn(),
+    findByPairs: jest.fn(),
     create: jest.fn(),
     acceptById: jest.fn(),
     removeByPair: jest.fn(),
@@ -26,6 +27,7 @@ jest.mock('../../src/modules/friends/friends.repository', () => ({
     removeBlock: jest.fn(),
     getBlockedUsers: jest.fn(),
     getConfirmedFriendIds: jest.fn(),
+    getBlocksByBlocker: jest.fn(),
   },
 }));
 
@@ -1129,5 +1131,254 @@ describe('friendsService.getFriendsList — is_online (H11)', () => {
     await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
 
     expect(usersClient.getOnlineStatus).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cancelRequest
+// ---------------------------------------------------------------------------
+describe('friendsService.cancelRequest', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('lanza 409 si no existe ninguna solicitud entre los usuarios', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('lanza AppError si no existe solicitud', async () => {
+    friendsRepository.findByPair.mockResolvedValue(null);
+    await expect(friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('cancela correctamente cuando el solicitante es el requester y está pendiente', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+    friendsRepository.softDeleteById.mockResolvedValue({ id: friends_ID, deleted_at: new Date() });
+
+    const result = await friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ message: 'Solicitud cancelada' });
+    expect(friendsRepository.softDeleteById).toHaveBeenCalledWith(friends_ID);
+  });
+
+  it('lanza 409 si la solicitud la envió el destinatario (REQUESTER no puede cancelar la solicitud del otro)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    });
+    await expect(friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(friendsRepository.softDeleteById).not.toHaveBeenCalled();
+  });
+
+  it('lanza 409 si la relación está en estado accepted (no se cancela una amistad ya aceptada)', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'accepted',
+    });
+    await expect(friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(friendsRepository.softDeleteById).not.toHaveBeenCalled();
+  });
+
+  it('usa softDeleteById (eliminación lógica), no elimina físicamente', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+    friendsRepository.softDeleteById.mockResolvedValue({ id: friends_ID, deleted_at: new Date() });
+
+    await friendsService.cancelRequest(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.softDeleteById).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRelationshipStatus
+// ---------------------------------------------------------------------------
+describe('friendsService.getRelationshipStatus', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    friendsRepository.isBlockedBy.mockResolvedValue(false);
+    friendsRepository.findByPair.mockResolvedValue(null);
+  });
+
+  it('devuelve { status: "self" } si userId === targetId (sin llamar al repo)', async () => {
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, REQUESTER_ID);
+    expect(result).toEqual({ status: 'self' });
+    expect(friendsRepository.isBlockedBy).not.toHaveBeenCalled();
+    expect(friendsRepository.findByPair).not.toHaveBeenCalled();
+  });
+
+  it('devuelve { status: "blocked" } si yo bloqueé al target', async () => {
+    friendsRepository.isBlockedBy.mockResolvedValue(true);
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'blocked' });
+    expect(friendsRepository.isBlockedBy).toHaveBeenCalledWith(REQUESTER_ID, ADDRESSEE_ID);
+    expect(friendsRepository.findByPair).not.toHaveBeenCalled();
+  });
+
+  it('devuelve { status: "none" } si no hay ninguna relación', async () => {
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'none' });
+  });
+
+  it('devuelve { status: "friends" } si la relación está aceptada', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'accepted',
+    });
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'friends' });
+  });
+
+  it('devuelve { status: "pending_sent" } si yo envié la solicitud pendiente', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: ADDRESSEE_ID,
+      status: 'pending',
+    });
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'pending_sent' });
+  });
+
+  it('devuelve { status: "pending_received" } si el target envió la solicitud', async () => {
+    friendsRepository.findByPair.mockResolvedValue({
+      id: friends_ID,
+      requester_id: ADDRESSEE_ID,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    });
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'pending_received' });
+  });
+
+  // Decisión de producto documentada: bloqueo silencioso unidireccional.
+  // isBlockedBy(userId, targetId) solo chequea si YO bloqueé al otro.
+  // Si el otro me bloqueó a mí, el estado es 'none' para el usuario bloqueado.
+  it('devuelve { status: "none" } si el otro me bloqueó a mí (bloqueo silencioso — decisión de producto)', async () => {
+    friendsRepository.isBlockedBy.mockResolvedValue(false);
+    friendsRepository.findByPair.mockResolvedValue(null);
+    const result = await friendsService.getRelationshipStatus(REQUESTER_ID, ADDRESSEE_ID);
+    expect(result).toEqual({ status: 'none' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRelationshipStatuses (batch)
+// ---------------------------------------------------------------------------
+describe('friendsService.getRelationshipStatuses', () => {
+  const TARGET_A = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  const TARGET_B = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    friendsRepository.getBlocksByBlocker.mockResolvedValue([]);
+    friendsRepository.findByPairs.mockResolvedValue([]);
+  });
+
+  it('devuelve {} inmediatamente si targetIds es array vacío (early return)', async () => {
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, []);
+    expect(result).toEqual({});
+    expect(friendsRepository.getBlocksByBlocker).not.toHaveBeenCalled();
+    expect(friendsRepository.findByPairs).not.toHaveBeenCalled();
+  });
+
+  it('devuelve {} si targetIds es null', async () => {
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, null);
+    expect(result).toEqual({});
+  });
+
+  it('devuelve "self" cuando targetId === userId', async () => {
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [REQUESTER_ID]);
+    expect(result[REQUESTER_ID]).toBe('self');
+  });
+
+  it('devuelve "blocked" para targets que yo bloqueé', async () => {
+    friendsRepository.getBlocksByBlocker.mockResolvedValue([{ blocked_id: TARGET_A }]);
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A, TARGET_B]);
+    expect(result[TARGET_A]).toBe('blocked');
+    expect(result[TARGET_B]).toBe('none');
+  });
+
+  it('devuelve "friends" para relaciones aceptadas', async () => {
+    friendsRepository.findByPairs.mockResolvedValue([{
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: TARGET_A,
+      status: 'accepted',
+    }]);
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A]);
+    expect(result[TARGET_A]).toBe('friends');
+  });
+
+  it('devuelve "pending_sent" si yo envié la solicitud al target', async () => {
+    friendsRepository.findByPairs.mockResolvedValue([{
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: TARGET_A,
+      status: 'pending',
+    }]);
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A]);
+    expect(result[TARGET_A]).toBe('pending_sent');
+  });
+
+  it('devuelve "pending_received" si el target me envió la solicitud', async () => {
+    friendsRepository.findByPairs.mockResolvedValue([{
+      id: friends_ID,
+      requester_id: TARGET_A,
+      addressee_id: REQUESTER_ID,
+      status: 'pending',
+    }]);
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A]);
+    expect(result[TARGET_A]).toBe('pending_received');
+  });
+
+  it('devuelve "none" si no hay ninguna relación con el target', async () => {
+    const result = await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A]);
+    expect(result[TARGET_A]).toBe('none');
+  });
+
+  it('maneja correctamente una mezcla de estados en una sola llamada batch', async () => {
+    friendsRepository.getBlocksByBlocker.mockResolvedValue([{ blocked_id: TARGET_B }]);
+    friendsRepository.findByPairs.mockResolvedValue([{
+      id: friends_ID,
+      requester_id: REQUESTER_ID,
+      addressee_id: TARGET_A,
+      status: 'accepted',
+    }]);
+    const result = await friendsService.getRelationshipStatuses(
+      REQUESTER_ID,
+      [TARGET_A, TARGET_B, REQUESTER_ID]
+    );
+    expect(result[TARGET_A]).toBe('friends');
+    expect(result[TARGET_B]).toBe('blocked');
+    expect(result[REQUESTER_ID]).toBe('self');
+  });
+
+  it('llama a getBlocksByBlocker con userId y targetIds correctos', async () => {
+    await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A, TARGET_B]);
+    expect(friendsRepository.getBlocksByBlocker).toHaveBeenCalledWith(REQUESTER_ID, [TARGET_A, TARGET_B]);
+  });
+
+  it('llama a findByPairs con userId y targetIds correctos', async () => {
+    await friendsService.getRelationshipStatuses(REQUESTER_ID, [TARGET_A, TARGET_B]);
+    expect(friendsRepository.findByPairs).toHaveBeenCalledWith(REQUESTER_ID, [TARGET_A, TARGET_B]);
   });
 });
