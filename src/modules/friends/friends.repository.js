@@ -224,4 +224,31 @@ const friendsRepository = {
   },
 };
 
+  // AI service: devuelve todos los IDs que deben excluirse de recomendaciones para userId.
+  // Incluye: amigos confirmados + pendientes (ambas direcciones) y bloqueados (ambas direcciones).
+  async getExcludedIds(userId) {
+    const friendsResult = await query(
+      `SELECT requester_id, addressee_id FROM friends
+       WHERE (requester_id = $1 OR addressee_id = $1)
+         AND deleted_at IS NULL`,
+      [userId]
+    );
+    const blocksResult = await query(
+      `SELECT blocked_id FROM blocks WHERE blocker_id = $1
+       UNION
+       SELECT blocker_id FROM blocks WHERE blocked_id = $1`,
+      [userId]
+    );
+    const ids = new Set();
+    for (const row of friendsResult.rows) {
+      if (row.requester_id !== userId) ids.add(row.requester_id);
+      if (row.addressee_id !== userId) ids.add(row.addressee_id);
+    }
+    for (const row of blocksResult.rows) {
+      ids.add(row.blocked_id);
+    }
+    return [...ids];
+  },
+};
+
 module.exports = { friendsRepository };
