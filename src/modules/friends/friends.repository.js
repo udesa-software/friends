@@ -222,7 +222,6 @@ const friendsRepository = {
       : 0;
     return { rows: result.rows, total };
   },
-};
 
   // AI service: devuelve todos los IDs que deben excluirse de recomendaciones para userId.
   // Incluye: amigos confirmados + pendientes (ambas direcciones) y bloqueados (ambas direcciones).
