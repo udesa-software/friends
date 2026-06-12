@@ -2,10 +2,12 @@ const express = require('express');
 const friendsRouter = require('./modules/friends/friends.routes');
 const internalRouter = require('./modules/friends/internal.routes');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { httpLogger } = require('./observability/httpMiddleware');
 
 const app = express();
 
 app.use(express.json());
+app.use(httpLogger);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
