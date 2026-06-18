@@ -2,6 +2,7 @@ const { friendsRepository } = require('./friends.repository');
 const { AppError } = require('../../middlewares/errorHandler');
 const { notificationsClient } = require('../../clients/notificationsClient');
 const { usersClient } = require('../../clients/usersClient');
+const { logger } = require('../../observability/logger');
 
 const REQUEST_LIMIT_PER_HOUR = 20;
 const PAGE_SIZE = 20;
@@ -17,6 +18,7 @@ const friendsService = {
     // CA.5: máximo 20 solicitudes por hora
     const recentCount = await friendsRepository.countRequestsInLastHour(requesterId);
     if (recentCount >= REQUEST_LIMIT_PER_HOUR) {
+      logger.warn({ event: 'friend.rate_limit_hit', requesterId, count: recentCount }, 'friend.rate_limit_hit');
       throw new AppError(429, 'Superaste el límite de solicitudes de amistad por hora');
     }
 
@@ -48,12 +50,14 @@ const friendsService = {
     // CA.2: crear solicitud pendiente
     await friendsRepository.create(requesterId, requesterUsername, addresseeId);
 
+    logger.info({ event: 'friend.request_sent', requesterId, addresseeId }, 'friend.request_sent');
+
     // Enviar notificación push asincrónica (no bloqueante)
     notificationsClient.sendNotification(addresseeId, {
       title: '¡Nueva solicitud de amistad!',
       body: `${requesterUsername} te ha enviado una solicitud de amistad.`,
       data: { screen: 'PendingRequests' }
-    }).catch(err => console.error('[FriendsService] Notification trigger failed:', err));
+    }).catch(err => logger.error({ err: err.message, event: 'friend.notification_failed' }, 'friend.notification_failed'));
 
     return { message: 'Solicitud enviada' };
   },
@@ -72,6 +76,8 @@ const friendsService = {
 
     // CA.3: eliminar registro (un solo registro cubre ambas direcciones)
     await friendsRepository.removeByPair(requesterId, friendId);
+
+    logger.info({ event: 'friend.removed', userId: requesterId, friendId }, 'friend.removed');
 
     return { message: 'Amistad eliminada' };
   },
@@ -94,16 +100,18 @@ const friendsService = {
     ) {
       await friendsRepository.acceptById(existing.id, requesterUsername);
 
+      logger.info({ event: 'friend.request_accepted', userId: requesterId, friendId: addresseeId }, 'friend.request_accepted');
+
       // Enviar notificación push asincrónica (no bloqueante) al emisor original (addresseeId)
       notificationsClient.sendNotification(addresseeId, {
         title: '¡Solicitud de amistad aceptada!',
         body: `${requesterUsername} aceptó tu solicitud de amistad.`,
-        data: { 
-          screen: 'MapFocus', 
+        data: {
+          screen: 'MapFocus',
           friendId: requesterId,
           friendUsername: requesterUsername
         }
-      }).catch(err => console.error('[FriendsService] Accept notification trigger failed:', err));
+      }).catch(err => logger.error({ err: err.message, event: 'friend.notification_failed' }, 'friend.notification_failed'));
 
       return { message: 'Solicitud aceptada' };
     }
@@ -263,6 +271,8 @@ const friendsService = {
     }
 
     await friendsRepository.createBlock(blockerId, blockedId, blockedUsername);
+
+    logger.info({ event: 'friend.user_blocked', blockerId, blockedId }, 'friend.user_blocked');
 
     return { message: 'Usuario bloqueado', blockedUsername };
   },
