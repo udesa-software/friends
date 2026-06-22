@@ -1,0 +1,58 @@
+const { reportsRepository } = require('./reports.repository');
+const { AppError } = require('../../middlewares/errorHandler');
+const { usersClient } = require('../../clients/usersClient');
+const { backofficeClient } = require('../../clients/backofficeClient');
+const { logger } = require('../../observability/logger');
+
+// CA.2: "más de 5 reportes de cuentas distintas" -> el 6to denunciante distinto dispara la revisión.
+const REVIEW_THRESHOLD = 6;
+
+const reportsService = {
+  async createReport(reporterId, reporterUsername, reportedId, reportedUsername, reason) {
+    if (reporterId === reportedId) {
+      throw new AppError(400, 'No podés denunciarte a vos mismo');
+    }
+
+    // CA.3: no permitir denunciar al mismo usuario más de una vez en 24hs
+    const alreadyReported = await reportsRepository.hasReportedRecently(reporterId, reportedId);
+    if (alreadyReported) {
+      throw new AppError(409, 'Ya reportaste a este usuario, podés volver a hacerlo en 24 horas');
+    }
+
+    const report = await reportsRepository.create(
+      reporterId,
+      reporterUsername,
+      reportedId,
+      reportedUsername,
+      reason
+    );
+
+    logger.info({ event: 'report.created', reporterId, reportedId, reason }, 'report.created');
+
+    // CA.1: enviar copia al backoffice (fire-and-forget, no bloquea la respuesta)
+    backofficeClient
+      .sendReport({
+        reporterId,
+        reporterUsername,
+        reportedId,
+        reportedUsername,
+        reason,
+        createdAt: report.created_at,
+      })
+      .catch((err) =>
+        logger.error({ err: err.message, event: 'report.backoffice_sync_failed' }, 'report.backoffice_sync_failed')
+      );
+
+    // CA.2/CA.4: si este reporte cruza el umbral, marcar la cuenta en revisión en users
+    const distinctReporters = await reportsRepository.countDistinctReporters(reportedId);
+    if (distinctReporters === REVIEW_THRESHOLD) {
+      usersClient.flagUserForReview(reportedId).catch((err) =>
+        logger.error({ err: err.message, event: 'report.flag_review_failed', reportedId }, 'report.flag_review_failed')
+      );
+    }
+
+    return { message: 'Denuncia enviada' };
+  },
+};
+
+module.exports = { reportsService };

@@ -63,6 +63,24 @@ const usersClient = {
       return new Set();
     }
   },
+
+  // H9 CA.4: marca al usuario denunciado "en revisión" — el endpoint en users revoca
+  // inmediatamente su sesión activa. Requiere x-internal-secret porque la ruta está
+  // protegida con authenticateInternal.
+  async flagUserForReview(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}/flag-review`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_SECRET,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Users service error: ${response.status}`);
+    }
+  },
 };
 
 module.exports = { usersClient };
