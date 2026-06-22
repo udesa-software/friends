@@ -105,9 +105,12 @@ describe('reportsService.createReport', () => {
     expect(usersClient.flagUserForReview).toHaveBeenCalledWith(REPORTED_ID);
   });
 
-  it('NO vuelve a marcar en revisión en denuncias posteriores a la 6ta', async () => {
+  // Usa >= en vez de === para no perder el flag en denuncias concurrentes: si dos denuncias
+  // se insertan casi al mismo tiempo, ambas pueden leer un conteo que ya saltea el 6 exacto
+  // (ej. 7), y con === ninguna dispararía la revisión.
+  it('también marca en revisión si el conteo ya superó el umbral (ej. denuncias concurrentes que saltean el 6 exacto)', async () => {
     reportsRepository.countDistinctReporters.mockResolvedValue(7);
     await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
-    expect(usersClient.flagUserForReview).not.toHaveBeenCalled();
+    expect(usersClient.flagUserForReview).toHaveBeenCalledWith(REPORTED_ID);
   });
 });

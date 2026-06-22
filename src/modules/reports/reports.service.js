@@ -4,7 +4,11 @@ const { usersClient } = require('../../clients/usersClient');
 const { backofficeClient } = require('../../clients/backofficeClient');
 const { logger } = require('../../observability/logger');
 
-// CA.2: "más de 5 reportes de cuentas distintas" -> el 6to denunciante distinto dispara la revisión.
+// CA.2: "más de 5 reportes de cuentas distintas" -> a partir del 6to denunciante distinto se
+// dispara la revisión. Usa >= en vez de === porque dos denuncias concurrentes pueden insertar
+// sus filas antes de que cualquiera de las dos lea el conteo, haciendo que ambas lean un valor
+// que ya saltea el 6 exacto (ej. 7) — con === ninguna dispararía el flag. >= también re-flaggea
+// correctamente a una cuenta que fue resuelta y vuelve a acumular denuncias.
 const REVIEW_THRESHOLD = 6;
 
 const reportsService = {
@@ -45,7 +49,7 @@ const reportsService = {
 
     // CA.2/CA.4: si este reporte cruza el umbral, marcar la cuenta en revisión en users
     const distinctReporters = await reportsRepository.countDistinctReporters(reportedId);
-    if (distinctReporters === REVIEW_THRESHOLD) {
+    if (distinctReporters >= REVIEW_THRESHOLD) {
       usersClient.flagUserForReview(reportedId).catch((err) =>
         logger.error({ err: err.message, event: 'report.flag_review_failed', reportedId }, 'report.flag_review_failed')
       );
