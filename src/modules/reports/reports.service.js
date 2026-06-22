@@ -47,8 +47,12 @@ const reportsService = {
         logger.error({ err: err.message, event: 'report.backoffice_sync_failed' }, 'report.backoffice_sync_failed')
       );
 
-    // CA.2/CA.4: si este reporte cruza el umbral, marcar la cuenta en revisión en users
-    const distinctReporters = await reportsRepository.countDistinctReporters(reportedId);
+    // CA.2/CA.4: si este reporte cruza el umbral, marcar la cuenta en revisión en users.
+    // Solo cuenta denuncias posteriores a la última resolución de un admin (si la hubo) —
+    // si no, una cuenta ya resuelta se re-flaggearía con una sola denuncia nueva en vez de
+    // necesitar 6 nuevas. Llamada síncrona (no fire-and-forget) porque decide si se cuenta.
+    const resolvedAt = await usersClient.getUnderReviewResolvedAt(reportedId);
+    const distinctReporters = await reportsRepository.countDistinctReporters(reportedId, resolvedAt);
     if (distinctReporters >= REVIEW_THRESHOLD) {
       usersClient.flagUserForReview(reportedId).catch((err) =>
         logger.error({ err: err.message, event: 'report.flag_review_failed', reportedId }, 'report.flag_review_failed')

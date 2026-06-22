@@ -24,10 +24,13 @@ const reportsRepository = {
 
   // CA.2: cuenta denunciantes distintos (no el total de filas) — un mismo
   // reporter puede volver a denunciar después de las 24hs y no debe contar dos veces.
-  async countDistinctReporters(reportedId) {
+  // since: si se pasa, solo cuenta denuncias posteriores a esa fecha (denuncias previas
+  // a la última resolución de un admin no deben volver a sumar para el umbral).
+  async countDistinctReporters(reportedId, since = null) {
     const result = await query(
-      `SELECT COUNT(DISTINCT reporter_id) as count FROM reports WHERE reported_id = $1`,
-      [reportedId]
+      `SELECT COUNT(DISTINCT reporter_id) as count FROM reports
+       WHERE reported_id = $1 AND ($2::timestamptz IS NULL OR created_at > $2)`,
+      [reportedId, since]
     );
     return parseInt(result.rows[0].count, 10);
   },

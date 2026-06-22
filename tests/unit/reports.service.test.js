@@ -14,6 +14,7 @@ jest.mock('../../src/modules/reports/reports.repository', () => ({
 jest.mock('../../src/clients/usersClient', () => ({
   usersClient: {
     flagUserForReview: jest.fn(),
+    getUnderReviewResolvedAt: jest.fn(),
   },
 }));
 jest.mock('../../src/clients/backofficeClient', () => ({
@@ -42,6 +43,7 @@ describe('reportsService.createReport', () => {
     reportsRepository.countDistinctReporters.mockResolvedValue(1);
     backofficeClient.sendReport.mockResolvedValue();
     usersClient.flagUserForReview.mockResolvedValue();
+    usersClient.getUnderReviewResolvedAt.mockResolvedValue(null);
   });
 
   // CA: no auto-denuncia
@@ -112,5 +114,45 @@ describe('reportsService.createReport', () => {
     reportsRepository.countDistinctReporters.mockResolvedValue(7);
     await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
     expect(usersClient.flagUserForReview).toHaveBeenCalledWith(REPORTED_ID);
+  });
+
+  // Reseteo del conteo tras resolver una revisión: countDistinctReporters debe recibir
+  // el cutoff de usersClient.getUnderReviewResolvedAt, no contar desde siempre.
+  describe('cutoff de denuncias tras resolver una revisión', () => {
+    it('cuenta con since = null cuando la cuenta nunca fue resuelta', async () => {
+      usersClient.getUnderReviewResolvedAt.mockResolvedValue(null);
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
+      expect(reportsRepository.countDistinctReporters).toHaveBeenCalledWith(REPORTED_ID, null);
+    });
+
+    it('propaga el timestamp de resolución a countDistinctReporters cuando existe', async () => {
+      const resolvedAt = '2026-06-22T10:00:00.000Z';
+      usersClient.getUnderReviewResolvedAt.mockResolvedValue(resolvedAt);
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
+      expect(reportsRepository.countDistinctReporters).toHaveBeenCalledWith(REPORTED_ID, resolvedAt);
+    });
+
+    // Caso completo del bug original: 8 denunciantes históricos pre-resolución, pero solo
+    // 2 nuevos desde que se resolvió -> no debe re-flaggear (no llegó a 6 desde la resolución).
+    it('NO marca en revisión si, contando solo desde la última resolución, todavía no llega a 6', async () => {
+      const resolvedAt = '2026-06-22T10:00:00.000Z';
+      usersClient.getUnderReviewResolvedAt.mockResolvedValue(resolvedAt);
+      reportsRepository.countDistinctReporters.mockResolvedValue(2);
+
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
+
+      expect(reportsRepository.countDistinctReporters).toHaveBeenCalledWith(REPORTED_ID, resolvedAt);
+      expect(usersClient.flagUserForReview).not.toHaveBeenCalled();
+    });
+
+    it('SÍ marca en revisión si, contando solo desde la última resolución, llega a 6', async () => {
+      const resolvedAt = '2026-06-22T10:00:00.000Z';
+      usersClient.getUnderReviewResolvedAt.mockResolvedValue(resolvedAt);
+      reportsRepository.countDistinctReporters.mockResolvedValue(6);
+
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
+
+      expect(usersClient.flagUserForReview).toHaveBeenCalledWith(REPORTED_ID);
+    });
   });
 });

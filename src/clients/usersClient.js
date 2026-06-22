@@ -81,6 +81,29 @@ const usersClient = {
       throw new Error(`Users service error: ${response.status}`);
     }
   },
+
+  // H9: consulta desde cuándo contar denuncias nuevas (null si la cuenta nunca fue resuelta).
+  // Resiliente como getOnlineStatus: si users no responde, devuelve null (fallback seguro =
+  // contar todo el historial, mismo comportamiento que si esta función no existiera).
+  async getUnderReviewResolvedAt(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}/under-review-resolved-at`;
+    try {
+      const response = await fetch(url, {
+        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET },
+      });
+
+      if (!response.ok) {
+        console.warn(`[usersClient] getUnderReviewResolvedAt responded ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.underReviewResolvedAt ?? null;
+    } catch (err) {
+      console.warn('[usersClient] getUnderReviewResolvedAt failed, defaulting to no cutoff:', err.message);
+      return null;
+    }
+  },
 };
 
 module.exports = { usersClient };

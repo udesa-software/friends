@@ -39,3 +39,51 @@ describe('usersClient.flagUserForReview', () => {
     await expect(usersClient.flagUserForReview('user-1')).rejects.toThrow('Users service error: 500');
   });
 });
+
+describe('usersClient.getUnderReviewResolvedAt', () => {
+  const ORIGINAL_ENV = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = {
+      ...ORIGINAL_ENV,
+      USERS_SERVICE_URL: 'http://users:3000',
+      INTERNAL_SECRET: 'test-internal-secret',
+    };
+  });
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('devuelve el timestamp cuando la respuesta es ok', async () => {
+    const resolvedAt = '2026-06-22T10:00:00.000Z';
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ underReviewResolvedAt: resolvedAt }),
+    });
+
+    const result = await usersClient.getUnderReviewResolvedAt('user-1');
+
+    expect(global.fetch).toHaveBeenCalledWith('http://users:3000/internal/users/user-1/under-review-resolved-at', {
+      headers: { 'x-internal-secret': 'test-internal-secret' },
+    });
+    expect(result).toBe(resolvedAt);
+  });
+
+  it('devuelve null sin lanzar cuando la respuesta no es ok', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 500 });
+
+    const result = await usersClient.getUnderReviewResolvedAt('user-1');
+
+    expect(result).toBeNull();
+  });
+
+  it('devuelve null sin lanzar cuando fetch rechaza (users caído)', async () => {
+    global.fetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    const result = await usersClient.getUnderReviewResolvedAt('user-1');
+
+    expect(result).toBeNull();
+  });
+});
