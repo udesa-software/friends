@@ -15,6 +15,7 @@ jest.mock('../../src/clients/usersClient', () => ({
   usersClient: {
     flagUserForReview: jest.fn(),
     getUnderReviewResolvedAt: jest.fn(),
+    getUserUsername: jest.fn(),
   },
 }));
 jest.mock('../../src/clients/backofficeClient', () => ({
@@ -44,6 +45,7 @@ describe('reportsService.createReport', () => {
     backofficeClient.sendReport.mockResolvedValue();
     usersClient.flagUserForReview.mockResolvedValue();
     usersClient.getUnderReviewResolvedAt.mockResolvedValue(null);
+    usersClient.getUserUsername.mockResolvedValue('resolved_username');
   });
 
   // CA: no auto-denuncia
@@ -77,22 +79,41 @@ describe('reportsService.createReport', () => {
       REPORTER_ID,
       REPORTER_USERNAME,
       REPORTED_ID,
-      REPORTED_USERNAME,
+      'resolved_username',
       REASON,
       null
     );
     expect(result).toEqual({ message: 'Denuncia enviada' });
   });
 
-  it('envía una copia al backoffice de forma fire-and-forget', async () => {
+  it('envía una copia al backoffice con el username resuelto (no el del cliente)', async () => {
     await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
     expect(backofficeClient.sendReport).toHaveBeenCalledWith(
       expect.objectContaining({
         reporterId: REPORTER_ID,
         reportedId: REPORTED_ID,
+        reportedUsername: 'resolved_username',
         reason: REASON,
       })
     );
+  });
+
+  describe('resolución de reportedUsername desde users', () => {
+    it('usa el username resuelto desde users, no el enviado por el cliente', async () => {
+      usersClient.getUserUsername.mockResolvedValue('username_actual');
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'username_viejo', REASON);
+      expect(reportsRepository.create).toHaveBeenCalledWith(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'username_actual', REASON, null
+      );
+    });
+
+    it('usa el reportedUsername del cliente como fallback cuando getUserUsername devuelve null', async () => {
+      usersClient.getUserUsername.mockResolvedValue(null);
+      await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
+      expect(reportsRepository.create).toHaveBeenCalledWith(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON, null
+      );
+    });
   });
 
   // CA.2: más de 5 reportes de cuentas distintas -> el 6to dispara la revisión
@@ -163,7 +184,7 @@ describe('reportsService.createReport', () => {
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', '  Me acosó por DM  '
       );
       expect(reportsRepository.create).toHaveBeenCalledWith(
-        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'Me acosó por DM'
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'resolved_username', 'other', 'Me acosó por DM'
       );
     });
 
@@ -172,7 +193,7 @@ describe('reportsService.createReport', () => {
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', '<script>alert(1)</script>Texto real'
       );
       expect(reportsRepository.create).toHaveBeenCalledWith(
-        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'alert(1)Texto real'
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'resolved_username', 'other', 'alert(1)Texto real'
       );
     });
 
@@ -181,7 +202,7 @@ describe('reportsService.createReport', () => {
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'Detalle del caso'
       );
       expect(backofficeClient.sendReport).toHaveBeenCalledWith(
-        expect.objectContaining({ reason: 'other', reasonDetail: 'Detalle del caso' })
+        expect.objectContaining({ reason: 'other', reasonDetail: 'Detalle del caso', reportedUsername: 'resolved_username' })
       );
     });
 
@@ -190,10 +211,10 @@ describe('reportsService.createReport', () => {
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'spam', 'esto no debería guardarse'
       );
       expect(reportsRepository.create).toHaveBeenCalledWith(
-        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'spam', null
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'resolved_username', 'spam', null
       );
       expect(backofficeClient.sendReport).toHaveBeenCalledWith(
-        expect.objectContaining({ reason: 'spam', reasonDetail: null })
+        expect.objectContaining({ reason: 'spam', reasonDetail: null, reportedUsername: 'resolved_username' })
       );
     });
   });

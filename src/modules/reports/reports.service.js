@@ -23,6 +23,12 @@ const reportsService = {
       throw new AppError(409, 'Ya reportaste a este usuario, podés volver a hacerlo en 24 horas');
     }
 
+    // Resolver el username actual del denunciado desde users, para no depender del valor
+    // que mandó el cliente (puede estar desactualizado si cambió su nombre). Fallback al
+    // valor del cliente si el servicio de usuarios no está disponible.
+    const currentUsername = await usersClient.getUserUsername(reportedId);
+    const resolvedReportedUsername = currentUsername ?? reportedUsername;
+
     // Solo conservamos el detalle libre cuando el motivo es 'other' — defensa en profundidad:
     // si llega reasonDetail con cualquier otro motivo, se descarta. Sanitiza igual que
     // userService.updateProfile sanea biography (elimina tags HTML).
@@ -35,7 +41,7 @@ const reportsService = {
       reporterId,
       reporterUsername,
       reportedId,
-      reportedUsername,
+      resolvedReportedUsername,
       reason,
       sanitizedDetail
     );
@@ -48,7 +54,7 @@ const reportsService = {
         reporterId,
         reporterUsername,
         reportedId,
-        reportedUsername,
+        reportedUsername: resolvedReportedUsername,
         reason,
         reasonDetail: sanitizedDetail,
         createdAt: report.created_at,

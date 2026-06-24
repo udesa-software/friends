@@ -11,7 +11,7 @@ const reportsController = {
         req.body.reason,
         req.body.reasonDetail
       );
-      res.status(200).json(result);
+      res.status(201).json(result);
     } catch (err) {
       next(err);
     }

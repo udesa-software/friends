@@ -40,6 +40,47 @@ describe('usersClient.flagUserForReview', () => {
   });
 });
 
+describe('usersClient.getUserUsername', () => {
+  const ORIGINAL_ENV = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = {
+      ...ORIGINAL_ENV,
+      USERS_SERVICE_URL: 'http://users:3000',
+      INTERNAL_SECRET: 'test-internal-secret',
+    };
+  });
+
+  afterAll(() => {
+    process.env = ORIGINAL_ENV;
+  });
+
+  it('devuelve el username cuando la respuesta es ok', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ username: 'juan_perez' }),
+    });
+
+    const result = await usersClient.getUserUsername('user-1');
+
+    expect(global.fetch).toHaveBeenCalledWith('http://users:3000/internal/users/user-1', {
+      headers: { 'x-internal-secret': 'test-internal-secret' },
+    });
+    expect(result).toBe('juan_perez');
+  });
+
+  it('devuelve null sin lanzar cuando la respuesta no es ok', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 404 });
+    expect(await usersClient.getUserUsername('user-1')).toBeNull();
+  });
+
+  it('devuelve null sin lanzar cuando fetch rechaza (users caído)', async () => {
+    global.fetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
+    expect(await usersClient.getUserUsername('user-1')).toBeNull();
+  });
+});
+
 describe('usersClient.getUnderReviewResolvedAt', () => {
   const ORIGINAL_ENV = process.env;
 
