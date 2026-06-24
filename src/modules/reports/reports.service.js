@@ -12,7 +12,7 @@ const { logger } = require('../../observability/logger');
 const REVIEW_THRESHOLD = 6;
 
 const reportsService = {
-  async createReport(reporterId, reporterUsername, reportedId, reportedUsername, reason) {
+  async createReport(reporterId, reporterUsername, reportedId, reportedUsername, reason, reasonDetail) {
     if (reporterId === reportedId) {
       throw new AppError(400, 'No podés denunciarte a vos mismo');
     }
@@ -23,12 +23,21 @@ const reportsService = {
       throw new AppError(409, 'Ya reportaste a este usuario, podés volver a hacerlo en 24 horas');
     }
 
+    // Solo conservamos el detalle libre cuando el motivo es 'other' — defensa en profundidad:
+    // si llega reasonDetail con cualquier otro motivo, se descarta. Sanitiza igual que
+    // userService.updateProfile sanea biography (elimina tags HTML).
+    const sanitizedDetail =
+      reason === 'other' && reasonDetail
+        ? reasonDetail.replace(/<[^>]*>/g, '').trim()
+        : null;
+
     const report = await reportsRepository.create(
       reporterId,
       reporterUsername,
       reportedId,
       reportedUsername,
-      reason
+      reason,
+      sanitizedDetail
     );
 
     logger.info({ event: 'report.created', reporterId, reportedId, reason }, 'report.created');
@@ -41,6 +50,7 @@ const reportsService = {
         reportedId,
         reportedUsername,
         reason,
+        reasonDetail: sanitizedDetail,
         createdAt: report.created_at,
       })
       .catch((err) =>

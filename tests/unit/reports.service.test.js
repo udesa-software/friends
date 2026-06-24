@@ -78,7 +78,8 @@ describe('reportsService.createReport', () => {
       REPORTER_USERNAME,
       REPORTED_ID,
       REPORTED_USERNAME,
-      REASON
+      REASON,
+      null
     );
     expect(result).toEqual({ message: 'Denuncia enviada' });
   });
@@ -153,6 +154,47 @@ describe('reportsService.createReport', () => {
       await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
 
       expect(usersClient.flagUserForReview).toHaveBeenCalledWith(REPORTED_ID);
+    });
+  });
+
+  describe('reasonDetail (motivo "Otro")', () => {
+    it('propaga el reasonDetail saneado a reportsRepository.create cuando reason es "other"', async () => {
+      await reportsService.createReport(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', '  Me acosó por DM  '
+      );
+      expect(reportsRepository.create).toHaveBeenCalledWith(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'Me acosó por DM'
+      );
+    });
+
+    it('elimina tags HTML del reasonDetail antes de guardar', async () => {
+      await reportsService.createReport(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', '<script>alert(1)</script>Texto real'
+      );
+      expect(reportsRepository.create).toHaveBeenCalledWith(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'alert(1)Texto real'
+      );
+    });
+
+    it('propaga el reasonDetail saneado a backofficeClient.sendReport cuando reason es "other"', async () => {
+      await reportsService.createReport(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'Detalle del caso'
+      );
+      expect(backofficeClient.sendReport).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'other', reasonDetail: 'Detalle del caso' })
+      );
+    });
+
+    it('descarta el reasonDetail (guarda null) si el motivo no es "other", aunque venga informado', async () => {
+      await reportsService.createReport(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'spam', 'esto no debería guardarse'
+      );
+      expect(reportsRepository.create).toHaveBeenCalledWith(
+        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'spam', null
+      );
+      expect(backofficeClient.sendReport).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'spam', reasonDetail: null })
+      );
     });
   });
 });

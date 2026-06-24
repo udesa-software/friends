@@ -12,12 +12,12 @@ const reportsRepository = {
     return result.rows.length > 0;
   },
 
-  async create(reporterId, reporterUsername, reportedId, reportedUsername, reason) {
+  async create(reporterId, reporterUsername, reportedId, reportedUsername, reason, reasonDetail = null) {
     const result = await query(
-      `INSERT INTO reports (reporter_id, reporter_username, reported_id, reported_username, reason)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO reports (reporter_id, reporter_username, reported_id, reported_username, reason, reason_detail)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [reporterId, reporterUsername, reportedId, reportedUsername, reason]
+      [reporterId, reporterUsername, reportedId, reportedUsername, reason, reasonDetail]
     );
     return result.rows[0];
   },

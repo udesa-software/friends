@@ -8,7 +8,8 @@ const reportsController = {
         req.user.username,
         req.body.reportedId,
         req.body.reportedUsername,
-        req.body.reason
+        req.body.reason,
+        req.body.reasonDetail
       );
       res.status(200).json(result);
     } catch (err) {
