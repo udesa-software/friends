@@ -63,6 +63,68 @@ const usersClient = {
       return new Set();
     }
   },
+
+  // H9: resuelve el username actual del usuario a partir de su ID, para no depender
+  // del valor que manda el cliente (que puede estar desactualizado si cambió su nombre).
+  // Resiliente: si users no responde, devuelve null y el servicio usa el fallback del cliente.
+  async getUserUsername(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}`;
+    try {
+      const response = await fetch(url, {
+        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET },
+      });
+      if (!response.ok) {
+        console.warn(`[usersClient] getUserUsername responded ${response.status}`);
+        return null;
+      }
+      const data = await response.json();
+      return data.username ?? null;
+    } catch (err) {
+      console.warn('[usersClient] getUserUsername failed, using client-provided username:', err.message);
+      return null;
+    }
+  },
+
+  // H9 CA.4: marca al usuario denunciado "en revisión" — el endpoint en users revoca
+  // inmediatamente su sesión activa. Requiere x-internal-secret porque la ruta está
+  // protegida con authenticateInternal.
+  async flagUserForReview(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}/flag-review`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_SECRET,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Users service error: ${response.status}`);
+    }
+  },
+
+  // H9: consulta desde cuándo contar denuncias nuevas (null si la cuenta nunca fue resuelta).
+  // Resiliente como getOnlineStatus: si users no responde, devuelve null (fallback seguro =
+  // contar todo el historial, mismo comportamiento que si esta función no existiera).
+  async getUnderReviewResolvedAt(userId) {
+    const url = `${process.env.USERS_SERVICE_URL}/internal/users/${userId}/under-review-resolved-at`;
+    try {
+      const response = await fetch(url, {
+        headers: { 'x-internal-secret': process.env.INTERNAL_SECRET },
+      });
+
+      if (!response.ok) {
+        console.warn(`[usersClient] getUnderReviewResolvedAt responded ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.underReviewResolvedAt ?? null;
+    } catch (err) {
+      console.warn('[usersClient] getUnderReviewResolvedAt failed, defaulting to no cutoff:', err.message);
+      return null;
+    }
+  },
 };
 
 module.exports = { usersClient };

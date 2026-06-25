@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { friendsController } = require('./friends.controller');
+const reportsRouter = require('../reports/reports.routes');
 const { validate, validateParams } = require('../../middlewares/validate');
 const { authenticate } = require('../../middlewares/authenticate');
 const {
@@ -58,5 +59,8 @@ router.get('/status/:userId', authenticate, friendsController.getRelationshipSta
 
 // POST /api/friends/status/batch — estado de la relación en lote
 router.post('/status/batch', authenticate, validate(getRelationshipStatusesSchema), friendsController.getRelationshipStatuses);
+
+// POST /api/friends/reports — H9: denunciar usuario
+router.use('/reports', reportsRouter);
 
 module.exports = router;
