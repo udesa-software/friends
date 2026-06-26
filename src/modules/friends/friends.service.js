@@ -180,17 +180,23 @@ const friendsService = {
 
     const { rows, total } = await friendsRepository.getConfirmedFriends(userId, limit, offset);
 
-    // H10 CA.1: consultar online-status para los amigos de esta página.
+    // H10 CA.1: consultar online-status y fotos de perfil para los amigos de esta página.
     // Si USERS_SERVICE_URL no está configurado (entorno sin inter-servicios), se salta.
     let onlineSet = new Set();
+    let photoMap = new Map();
     if (process.env.USERS_SERVICE_URL && rows.length > 0) {
       const friendIds = rows.map((r) => r.friend_id);
-      onlineSet = await usersClient.getOnlineStatus(friendIds);
+      const [profiles] = await Promise.all([
+        usersClient.getBatchProfiles(friendIds),
+        usersClient.getOnlineStatus(friendIds).then((s) => { onlineSet = s; }),
+      ]);
+      photoMap = new Map(profiles.map((p) => [p.id, p.profile_photo_url]));
     }
 
     const enrichedRows = rows.map((r) => ({
       ...r,
       is_online: onlineSet.has(r.friend_id),
+      profile_photo_url: photoMap.get(r.friend_id) ?? null,
     }));
 
     return {
