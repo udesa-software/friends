@@ -7,6 +7,7 @@ jest.mock('../../src/clients/usersClient', () => ({
   usersClient: {
     getOnlineStatus: jest.fn(),
     getActiveUserIds: jest.fn(),
+    getBatchProfiles: jest.fn(),
   },
 }));
 jest.mock('../../src/modules/friends/friends.repository', () => ({
@@ -663,7 +664,7 @@ describe('friendsService.getFriendsList', () => {
 
     const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
 
-    expect(result.data).toEqual([{ ...friend, is_online: false }]);
+    expect(result.data).toEqual([{ ...friend, is_online: false, profile_photo_url: null }]);
   });
 
   it('CA.2: usa page 1 por defecto si no se pasa parámetro', async () => {
@@ -1066,6 +1067,7 @@ describe('friendsService.getFriendsList — is_online (H11)', () => {
     jest.clearAllMocks();
     process.env.USERS_SERVICE_URL = 'http://users-service';
     usersClient.getOnlineStatus.mockResolvedValue(new Set());
+    usersClient.getBatchProfiles.mockResolvedValue([]);
   });
 
   afterEach(() => {
