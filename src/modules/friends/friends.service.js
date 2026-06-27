@@ -234,8 +234,15 @@ const friendsService = {
       offset
     );
 
+    let photoMap = new Map();
+    if (process.env.USERS_SERVICE_URL && rows.length > 0) {
+      const ids = rows.map((r) => r.requester_id);
+      const profiles = await usersClient.getBatchProfiles(ids);
+      photoMap = new Map(profiles.map((p) => [p.id, p.profile_photo_url]));
+    }
+
     return {
-      data: rows,
+      data: rows.map((r) => ({ ...r, profile_photo_url: photoMap.get(r.requester_id) ?? null })),
       pagination: {
         page,
         pageSize: limit,
