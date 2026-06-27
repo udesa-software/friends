@@ -6,10 +6,12 @@ jest.mock('../../src/modules/reports/reports.repository', () => ({
     listReportGroups:  jest.fn(),
     countReportGroups: jest.fn(),
     markReportsStatus: jest.fn(),
+    discardReport:     jest.fn(),
   },
 }));
 
 const REPORTED_ID = 'reported-uuid-1';
+const REPORT_ID   = 'report-uuid-1';
 
 const SAMPLE_GROUP = {
   reported_id:        REPORTED_ID,
@@ -23,7 +25,7 @@ const SAMPLE_GROUP = {
 };
 
 function makeReq(overrides = {}) {
-  return { params: { reportedId: REPORTED_ID }, query: {}, ...overrides };
+  return { params: { reportedId: REPORTED_ID, reportId: REPORT_ID }, query: {}, ...overrides };
 }
 function makeRes() { return { json: jest.fn() }; }
 function makeNext() { return jest.fn(); }
@@ -124,6 +126,33 @@ describe('reportsInternalController.resolve', () => {
     reportsRepository.markReportsStatus.mockRejectedValue(new Error('DB error'));
     const next = makeNext();
     await reportsInternalController.resolve(makeReq(), makeRes(), next);
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+  });
+});
+
+// ─── discardReport ────────────────────────────────────────────────────────────
+
+describe('reportsInternalController.discardReport', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    reportsRepository.discardReport.mockResolvedValue();
+  });
+
+  it('llama a reportsRepository.discardReport con el reportId', async () => {
+    await reportsInternalController.discardReport(makeReq(), makeRes(), makeNext());
+    expect(reportsRepository.discardReport).toHaveBeenCalledWith(REPORT_ID);
+  });
+
+  it('devuelve un mensaje de confirmación', async () => {
+    const res = makeRes();
+    await reportsInternalController.discardReport(makeReq(), res, makeNext());
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ message: expect.any(String) }));
+  });
+
+  it('llama a next con el error si discardReport falla', async () => {
+    reportsRepository.discardReport.mockRejectedValue(new Error('DB error'));
+    const next = makeNext();
+    await reportsInternalController.discardReport(makeReq(), makeRes(), next);
     expect(next).toHaveBeenCalledWith(expect.any(Error));
   });
 });

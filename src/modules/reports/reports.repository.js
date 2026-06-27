@@ -29,10 +29,19 @@ const reportsRepository = {
   async countDistinctReporters(reportedId, since = null) {
     const result = await query(
       `SELECT COUNT(DISTINCT reporter_id) as count FROM reports
-       WHERE reported_id = $1 AND ($2::timestamptz IS NULL OR created_at > $2)`,
+       WHERE reported_id = $1
+         AND status != 'discarded'
+         AND ($2::timestamptz IS NULL OR created_at > $2)`,
       [reportedId, since]
     );
     return parseInt(result.rows[0].count, 10);
+  },
+
+  async discardReport(reportId) {
+    await query(
+      "UPDATE reports SET status = 'discarded' WHERE id = $1 AND status = 'pending'",
+      [reportId]
+    );
   },
 
   // H7: listado agrupado por usuario denunciado para el panel de administración
