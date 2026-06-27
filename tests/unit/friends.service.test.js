@@ -1134,6 +1134,125 @@ describe('friendsService.getFriendsList — is_online (H11)', () => {
 
     expect(usersClient.getOnlineStatus).not.toHaveBeenCalled();
   });
+
+  it('enriquece con profile_photo_url cuando getBatchProfiles devuelve fotos', async () => {
+    const PHOTO_URL = 'https://cdn.test/alice.jpg';
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+    usersClient.getBatchProfiles.mockResolvedValue([
+      { id: ADDRESSEE_ID, profile_photo_url: PHOTO_URL },
+    ]);
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data[0].profile_photo_url).toBe(PHOTO_URL);
+  });
+
+  it('devuelve profile_photo_url null para amigo sin foto en getBatchProfiles', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+    usersClient.getBatchProfiles.mockResolvedValue([]);
+
+    const result = await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(result.data[0].profile_photo_url).toBeNull();
+  });
+
+  it('llama a getBatchProfiles con los IDs de los amigos de la página', async () => {
+    const friend = makeFriend(ADDRESSEE_ID, 'alice');
+    friendsRepository.getConfirmedFriends.mockResolvedValue({ rows: [friend], total: 1 });
+
+    await friendsService.getFriendsList(REQUESTER_ID, 'alphabetical', 1);
+
+    expect(usersClient.getBatchProfiles).toHaveBeenCalledWith([ADDRESSEE_ID]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H8: getPendingRequests — enriquecimiento con fotos de perfil
+// ---------------------------------------------------------------------------
+describe('friendsService.getPendingRequests — profile_photo_url', () => {
+  const makePendingReq = (requesterId) => ({
+    id: `${requesterId.slice(0, 8)}-0000-0000-0000-000000000000`,
+    requester_id: requesterId,
+    addressee_id: ADDRESSEE_ID,
+    status: 'pending',
+    created_at: new Date(),
+    deleted_at: null,
+    total_count: '1',
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.USERS_SERVICE_URL = 'http://users-service';
+    usersClient.getBatchProfiles.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    delete process.env.USERS_SERVICE_URL;
+  });
+
+  it('llama a getBatchProfiles con los requester_ids de las solicitudes pendientes', async () => {
+    friendsRepository.getPendingRequesterIds.mockResolvedValue([REQUESTER_ID]);
+    friendsRepository.getPendingRequests.mockResolvedValue({
+      rows: [makePendingReq(REQUESTER_ID)],
+      total: 1,
+    });
+
+    await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
+
+    expect(usersClient.getBatchProfiles).toHaveBeenCalledWith([REQUESTER_ID]);
+  });
+
+  it('incluye profile_photo_url del solicitante cuando getBatchProfiles devuelve foto', async () => {
+    const PHOTO_URL = 'https://cdn.test/requester.jpg';
+    friendsRepository.getPendingRequesterIds.mockResolvedValue([REQUESTER_ID]);
+    friendsRepository.getPendingRequests.mockResolvedValue({
+      rows: [makePendingReq(REQUESTER_ID)],
+      total: 1,
+    });
+    usersClient.getBatchProfiles.mockResolvedValue([
+      { id: REQUESTER_ID, profile_photo_url: PHOTO_URL },
+    ]);
+
+    const result = await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
+
+    expect(result.data[0].profile_photo_url).toBe(PHOTO_URL);
+  });
+
+  it('devuelve profile_photo_url null si el solicitante no tiene foto', async () => {
+    friendsRepository.getPendingRequesterIds.mockResolvedValue([REQUESTER_ID]);
+    friendsRepository.getPendingRequests.mockResolvedValue({
+      rows: [makePendingReq(REQUESTER_ID)],
+      total: 1,
+    });
+    usersClient.getBatchProfiles.mockResolvedValue([]);
+
+    const result = await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
+
+    expect(result.data[0].profile_photo_url).toBeNull();
+  });
+
+  it('no llama a getBatchProfiles si USERS_SERVICE_URL no está configurado', async () => {
+    delete process.env.USERS_SERVICE_URL;
+    friendsRepository.getPendingRequesterIds.mockResolvedValue([REQUESTER_ID]);
+    friendsRepository.getPendingRequests.mockResolvedValue({
+      rows: [makePendingReq(REQUESTER_ID)],
+      total: 1,
+    });
+
+    await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
+
+    expect(usersClient.getBatchProfiles).not.toHaveBeenCalled();
+  });
+
+  it('no llama a getBatchProfiles cuando no hay solicitudes pendientes', async () => {
+    friendsRepository.getPendingRequesterIds.mockResolvedValue([]);
+
+    await friendsService.getPendingRequests(ADDRESSEE_ID, 1);
+
+    expect(usersClient.getBatchProfiles).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
