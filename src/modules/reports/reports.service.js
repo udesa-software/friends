@@ -1,7 +1,6 @@
 const { reportsRepository } = require('./reports.repository');
 const { AppError } = require('../../middlewares/errorHandler');
 const { usersClient } = require('../../clients/usersClient');
-const { backofficeClient } = require('../../clients/backofficeClient');
 const { logger } = require('../../observability/logger');
 
 // CA.2: "más de 5 reportes de cuentas distintas" -> a partir del 6to denunciante distinto se
@@ -37,7 +36,7 @@ const reportsService = {
         ? reasonDetail.replace(/<[^>]*>/g, '').trim()
         : null;
 
-    const report = await reportsRepository.create(
+    await reportsRepository.create(
       reporterId,
       reporterUsername,
       reportedId,
@@ -47,21 +46,6 @@ const reportsService = {
     );
 
     logger.info({ event: 'report.created', reporterId, reportedId, reason }, 'report.created');
-
-    // CA.1: enviar copia al backoffice (fire-and-forget, no bloquea la respuesta)
-    backofficeClient
-      .sendReport({
-        reporterId,
-        reporterUsername,
-        reportedId,
-        reportedUsername: resolvedReportedUsername,
-        reason,
-        reasonDetail: sanitizedDetail,
-        createdAt: report.created_at,
-      })
-      .catch((err) =>
-        logger.error({ err: err.message, event: 'report.backoffice_sync_failed' }, 'report.backoffice_sync_failed')
-      );
 
     // CA.2/CA.4: si este reporte cruza el umbral, marcar la cuenta en revisión en users.
     // Solo cuenta denuncias posteriores a la última resolución de un admin (si la hubo) —
