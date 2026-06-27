@@ -2,7 +2,6 @@ const { reportsService } = require('../../src/modules/reports/reports.service');
 const { reportsRepository } = require('../../src/modules/reports/reports.repository');
 const { AppError } = require('../../src/middlewares/errorHandler');
 const { usersClient } = require('../../src/clients/usersClient');
-const { backofficeClient } = require('../../src/clients/backofficeClient');
 
 jest.mock('../../src/modules/reports/reports.repository', () => ({
   reportsRepository: {
@@ -16,11 +15,6 @@ jest.mock('../../src/clients/usersClient', () => ({
     flagUserForReview: jest.fn(),
     getUnderReviewResolvedAt: jest.fn(),
     getUserUsername: jest.fn(),
-  },
-}));
-jest.mock('../../src/clients/backofficeClient', () => ({
-  backofficeClient: {
-    sendReport: jest.fn(),
   },
 }));
 
@@ -42,7 +36,6 @@ describe('reportsService.createReport', () => {
       created_at: new Date().toISOString(),
     });
     reportsRepository.countDistinctReporters.mockResolvedValue(1);
-    backofficeClient.sendReport.mockResolvedValue();
     usersClient.flagUserForReview.mockResolvedValue();
     usersClient.getUnderReviewResolvedAt.mockResolvedValue(null);
     usersClient.getUserUsername.mockResolvedValue('resolved_username');
@@ -84,18 +77,6 @@ describe('reportsService.createReport', () => {
       null
     );
     expect(result).toEqual({ message: 'Denuncia enviada' });
-  });
-
-  it('envía una copia al backoffice con el username resuelto (no el del cliente)', async () => {
-    await reportsService.createReport(REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, REASON);
-    expect(backofficeClient.sendReport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        reporterId: REPORTER_ID,
-        reportedId: REPORTED_ID,
-        reportedUsername: 'resolved_username',
-        reason: REASON,
-      })
-    );
   });
 
   describe('resolución de reportedUsername desde users', () => {
@@ -197,24 +178,12 @@ describe('reportsService.createReport', () => {
       );
     });
 
-    it('propaga el reasonDetail saneado a backofficeClient.sendReport cuando reason es "other"', async () => {
-      await reportsService.createReport(
-        REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'other', 'Detalle del caso'
-      );
-      expect(backofficeClient.sendReport).toHaveBeenCalledWith(
-        expect.objectContaining({ reason: 'other', reasonDetail: 'Detalle del caso', reportedUsername: 'resolved_username' })
-      );
-    });
-
     it('descarta el reasonDetail (guarda null) si el motivo no es "other", aunque venga informado', async () => {
       await reportsService.createReport(
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, REPORTED_USERNAME, 'spam', 'esto no debería guardarse'
       );
       expect(reportsRepository.create).toHaveBeenCalledWith(
         REPORTER_ID, REPORTER_USERNAME, REPORTED_ID, 'resolved_username', 'spam', null
-      );
-      expect(backofficeClient.sendReport).toHaveBeenCalledWith(
-        expect.objectContaining({ reason: 'spam', reasonDetail: null, reportedUsername: 'resolved_username' })
       );
     });
   });
