@@ -52,6 +52,21 @@ spec:
                 secretKeyRef:
                   name: friends-secret
                   key: JWT_SECRET
+            - name: LOKI_URL
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: LOKI_URL
+            - name: LOKI_USER
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: LOKI_USER
+            - name: LOKI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: LOKI_TOKEN
           livenessProbe:
             httpGet:
               path: /health
