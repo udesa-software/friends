@@ -35,6 +35,29 @@ const usersClient = {
     return data.activeUserIds;
   },
 
+  async getBatchProfiles(userIds) {
+    if (!userIds || !userIds.length) return [];
+    try {
+      const response = await fetch(
+        `${process.env.USERS_SERVICE_URL}/internal/users/profiles`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userIds }),
+        }
+      );
+      if (!response.ok) {
+        console.warn(`[usersClient] getBatchProfiles responded ${response.status}`);
+        return [];
+      }
+      const data = await response.json();
+      return data.users ?? [];
+    } catch (err) {
+      console.warn('[usersClient] getBatchProfiles failed:', err.message);
+      return [];
+    }
+  },
+
   // H10 CA.1: consulta al servicio de usuarios cuáles de los IDs dados
   // estuvieron activos en los últimos 5 minutos (last_seen_at reciente).
   // Devuelve un Set de strings para hacer lookup en O(1) al armar la lista.
