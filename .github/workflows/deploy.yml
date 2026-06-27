@@ -43,6 +43,7 @@ jobs:
           FRIENDS_DB_PASSWORD: ${{ secrets.FRIENDS_DB_PASSWORD }}
           FRIENDS_DB_PORT: ${{ secrets.FRIENDS_DB_PORT }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
           LOKI_URL: ${{ secrets.LOKI_URL }}
           LOKI_USER: ${{ secrets.LOKI_USER }}
           LOKI_TOKEN: ${{ secrets.LOKI_TOKEN }}

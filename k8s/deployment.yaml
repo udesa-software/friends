@@ -52,6 +52,11 @@ spec:
                 secretKeyRef:
                   name: friends-secret
                   key: JWT_SECRET
+            - name: INTERNAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: friends-secret
+                  key: INTERNAL_SECRET
             - name: LOKI_URL
               valueFrom:
                 secretKeyRef:
