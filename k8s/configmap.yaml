@@ -8,3 +8,4 @@ data:
   DB_PORT: "5432"
   USERS_SERVICE_URL: "http://users:3000"
   NOTIFICATIONS_SERVICE_URL: "http://notifications:8080"
+  SERVICE_NAME: "friends"
