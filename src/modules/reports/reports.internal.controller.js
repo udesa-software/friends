@@ -29,6 +29,16 @@ const reportsInternalController = {
     }
   },
 
+  async discardReport(req, res, next) {
+    try {
+      const { reportId } = req.params;
+      await reportsRepository.discardReport(reportId);
+      res.json({ message: 'Denuncia descartada.' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // H7 CA.2: resolver — marca reportes como 'resolved'
   async resolve(req, res, next) {
     try {

@@ -6,9 +6,86 @@ jest.mock('../../src/config/database', () => ({
 }));
 
 const REPORTED_ID = 'reported-uuid-1';
+const REPORT_ID   = 'report-uuid-1';
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// ─── countDistinctReporters ───────────────────────────────────────────────────
+
+describe('reportsRepository.countDistinctReporters', () => {
+  beforeEach(() => {
+    query.mockResolvedValue({ rows: [{ count: '3' }] });
+  });
+
+  it('excluye reportes con status = discarded del conteo', async () => {
+    await reportsRepository.countDistinctReporters(REPORTED_ID);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("status != 'discarded'"),
+      expect.any(Array)
+    );
+  });
+
+  it('cuenta solo para el reported_id indicado', async () => {
+    await reportsRepository.countDistinctReporters(REPORTED_ID);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.any(String),
+      [REPORTED_ID, null]
+    );
+  });
+
+  it('pasa el timestamp since cuando se provee', async () => {
+    const since = '2026-01-01T00:00:00.000Z';
+    await reportsRepository.countDistinctReporters(REPORTED_ID, since);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.any(String),
+      [REPORTED_ID, since]
+    );
+  });
+
+  it('devuelve el conteo como número entero', async () => {
+    const result = await reportsRepository.countDistinctReporters(REPORTED_ID);
+    expect(result).toBe(3);
+  });
+});
+
+// ─── discardReport ────────────────────────────────────────────────────────────
+
+describe('reportsRepository.discardReport', () => {
+  beforeEach(() => {
+    query.mockResolvedValue({ rowCount: 1 });
+  });
+
+  it('ejecuta UPDATE con el reportId correcto', async () => {
+    await reportsRepository.discardReport(REPORT_ID);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE reports'),
+      [REPORT_ID]
+    );
+  });
+
+  it("solo actualiza filas con status = 'pending'", async () => {
+    await reportsRepository.discardReport(REPORT_ID);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("status = 'pending'"),
+      expect.any(Array)
+    );
+  });
+
+  it("establece status = 'discarded'", async () => {
+    await reportsRepository.discardReport(REPORT_ID);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("status = 'discarded'"),
+      expect.any(Array)
+    );
+  });
 });
 
 // ─── listReportGroups ─────────────────────────────────────────────────────────

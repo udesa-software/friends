@@ -8,5 +8,6 @@ const router = Router();
 router.get('/reports', authenticateInternal, reportsInternalController.list);
 router.post('/reports/:reportedId/discard', authenticateInternal, reportsInternalController.discard);
 router.post('/reports/:reportedId/resolve', authenticateInternal, reportsInternalController.resolve);
+router.post('/reports/report/:reportId/discard', authenticateInternal, reportsInternalController.discardReport);
 
 module.exports = router;
